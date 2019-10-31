@@ -1,0 +1,54 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.27703.2000
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Acrelec.MockingBird.Core", "Acrelec.MockingBird.Core", "{DD69D2D2-D674-4730-BCB6-F0030A774B75}"
+	ProjectSection(SolutionItems) = preProject
+		Acrelec.MockingBird.Core\Acrelec.Library.Coder.dll = Acrelec.MockingBird.Core\Acrelec.Library.Coder.dll
+		Acrelec.MockingBird.Core\Acrelec.Library.Logger.dll = Acrelec.MockingBird.Core\Acrelec.Library.Logger.dll
+		Acrelec.MockingBird.Core\Acrelec.Library.LogReport.dll = Acrelec.MockingBird.Core\Acrelec.Library.LogReport.dll
+		Acrelec.MockingBird.Core\Acrelec.Library.Pipes.dll = Acrelec.MockingBird.Core\Acrelec.Library.Pipes.dll
+		Acrelec.MockingBird.Core\Mockingbird.Feather.Peripherals.dll = Acrelec.MockingBird.Core\Mockingbird.Feather.Peripherals.dll
+		Acrelec.MockingBird.Core\Mockingbird.Interfaces.Peripherals.dll = Acrelec.MockingBird.Core\Mockingbird.Interfaces.Peripherals.dll
+		Acrelec.MockingBird.Core\Newtonsoft.Json.dll = Acrelec.MockingBird.Core\Newtonsoft.Json.dll
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Payments", "Payments", "{E7ECF14A-178E-4121-9CCA-BBC10BFA5E64}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Driver", "Driver", "{F21A5A34-4B5A-467D-A1C0-C91E6E4027EC}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Loader", "Loader", "{519E48BC-78FF-416A-A681-10A1FF22CD31}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "uk_barclaycard_smartpay", "Payments\Driver\uk_barclaycard_smartpay\uk_barclaycard_smartpay.csproj", "{57E7F34E-A038-48C8-B723-0F4F0D42E3D8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "barclaycard_smartpay", "Payments\Loader\barclaycard_smartpay\barclaycard_smartpay.csproj", "{1594DC88-1899-458D-B21F-681B36189691}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{57E7F34E-A038-48C8-B723-0F4F0D42E3D8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{57E7F34E-A038-48C8-B723-0F4F0D42E3D8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{57E7F34E-A038-48C8-B723-0F4F0D42E3D8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{57E7F34E-A038-48C8-B723-0F4F0D42E3D8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1594DC88-1899-458D-B21F-681B36189691}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1594DC88-1899-458D-B21F-681B36189691}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1594DC88-1899-458D-B21F-681B36189691}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1594DC88-1899-458D-B21F-681B36189691}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{F21A5A34-4B5A-467D-A1C0-C91E6E4027EC} = {E7ECF14A-178E-4121-9CCA-BBC10BFA5E64}
+		{519E48BC-78FF-416A-A681-10A1FF22CD31} = {E7ECF14A-178E-4121-9CCA-BBC10BFA5E64}
+		{57E7F34E-A038-48C8-B723-0F4F0D42E3D8} = {F21A5A34-4B5A-467D-A1C0-C91E6E4027EC}
+		{1594DC88-1899-458D-B21F-681B36189691} = {519E48BC-78FF-416A-A681-10A1FF22CD31}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B61DFFE1-11CD-48CA-88A9-E7DDE1139010}
+	EndGlobalSection
+EndGlobal
