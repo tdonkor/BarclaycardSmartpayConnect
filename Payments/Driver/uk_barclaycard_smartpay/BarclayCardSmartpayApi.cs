@@ -18,10 +18,6 @@ namespace Acrelec.Mockingbird.Payment
         IPAddress ipAddress;
         IPEndPoint remoteEP;
 
-        string custPath = @"C:\Customer Payment Drivers\PaymentTestCodewithout ATP\BarclayCard_Smartpay_Connect\CustomerReceipt.txt";
-        string merchantPath = @"C:\Customer Payment Drivers\PaymentTestCodewithout ATP\BarclayCard_Smartpay_Connect\MerchantReceipt.txt";
-
-
         // Data buffer for incoming data.
         byte[] bytes = new byte[1024];
 
@@ -61,8 +57,8 @@ namespace Acrelec.Mockingbird.Payment
             Log.Info($"Valid payment amount: {intAmount}");
 
             //check for a success or failure string 
-            string submitPaymentResult = string.Empty;
-            string FinaliseResult = string.Empty;
+            string submitPaymentResultStr = string.Empty;
+            string finaliseResultStr = string.Empty;
 
             Random rnd = new Random();
             TransNum = rnd.Next(1, int.MaxValue);
@@ -81,12 +77,14 @@ namespace Acrelec.Mockingbird.Payment
              Log.Info("Paymentsocket Open: " + SocketConnected(paymentsocket));
 
             //send submitpayment to smartpay - check response
-            string paymentResponse = sendToSmartPay(paymentsocket, paymentXml, "PAYMENT");
+            string paymentResponseStr = sendToSmartPay(paymentsocket, paymentXml, "PAYMENT");
 
-            submitPaymentResult = CheckResult(paymentResponse);
+            submitPaymentResultStr = CheckResult(paymentResponseStr);
 
-            if (submitPaymentResult == "success")
+            if (submitPaymentResultStr == "success")
+            {
                 Log.Info("Successful payment submitted");
+            }
             else
             {
                 Log.Error("Payment failed");
@@ -107,44 +105,57 @@ namespace Acrelec.Mockingbird.Payment
             procTranXML = processTransaction(TransNum);
 
             //send processTransaction - check response
-            string processTran = sendToSmartPay(processSocket, procTranXML, "PROCESSTRANSACTION");
+            string processTranStr = sendToSmartPay(processSocket, procTranXML, "PROCESSTRANSACTION");
 
             //check that the response contains a Receipt or is not NULL this is the Merchant receipt
 
-            transactionReceipts.MerchantReturnedReceipt =   ExtractXMLReceiptDetails(processTran);
+            transactionReceipts.MerchantReturnedReceipt =   ExtractXMLReceiptDetails(processTranStr);
+
+            //Check the merchant receipt is populated
+            if (transactionReceipts.MerchantReturnedReceipt == string.Empty)
+            {
+                Log.Error("No Merchant receipt returned");
+                isSuccessful = DiagnosticErrMsg.NOTOK;
+            }
 
 
             //checkSocket closed
-            Console.WriteLine("ProcessTransaction Open: " + SocketConnected(paymentsocket));
+            Log.Info("ProcessTransaction Open: " + SocketConnected(paymentsocket));
 
             //INTERACTION
             // open firstInteractionSocket connection
             Socket firstInteractionSocket = CreateSocket();
             //check socket open
-            Console.WriteLine("firstInteractionXML Socket Open: " + SocketConnected(firstInteractionSocket));
+           Log.Info("firstInteractionXML Socket Open: " + SocketConnected(firstInteractionSocket));
             firstInteractionXML = PrintReciptResponse(TransNum);
-            //send firstInteractionXML - check response
 
+            //send firstInteractionXML - check response
             string firstInteractionStr = sendToSmartPay(firstInteractionSocket, firstInteractionXML, "PROCESSTRANRESPONSE");
-            if (!File.Exists(custPath))
+
+           Log.Info($"firstInteractionStr Return: {firstInteractionStr}");
+
+            //check that the response is not NULL this is the CUSTOMER receipt
+            transactionReceipts.CustomerReturnedReceipt = ExtractXMLReceiptDetails(firstInteractionStr);
+
+            //Check the customer receipt is populated
+            if (transactionReceipts.CustomerReturnedReceipt == string.Empty)
             {
-                // Create a file to write to.
-                string createText = "Hello and Welcome Customer:" + Environment.NewLine;
-                File.WriteAllText(custPath, firstInteractionStr);
+                Log.Error("No Customer receipt returned");
+                isSuccessful = DiagnosticErrMsg.NOTOK;
             }
-            Console.WriteLine($"firstInteractionStr Return: {firstInteractionStr}");
-            Console.WriteLine("firstInteractionXML Socket Open: " + SocketConnected(firstInteractionSocket));
+
+            Log.Info("firstInteractionXML Socket Open: " + SocketConnected(firstInteractionSocket));
 
             //INTERACTION
             //open Customer Receipt connection
             Socket secondInteractionSocket = CreateSocket();
             //check socket open
-            Console.WriteLine("FinaliseXml Socket Open: " + SocketConnected(secondInteractionSocket));
+           Log.Info("FinaliseXml Socket Open: " + SocketConnected(secondInteractionSocket));
             secondInteractionXML = PrintReciptResponse(TransNum);
             //send FinaliseXml - check response
             string secondInteractionStr = sendToSmartPay(secondInteractionSocket, secondInteractionXML, "PRINTRECEIPTCUSTOMER");
-            Console.WriteLine($"secondInteractionStr Return: {secondInteractionStr}");
-            Console.WriteLine("secondInteractionXML Socket Open: " + SocketConnected(secondInteractionSocket));
+           Log.Info($"secondInteractionStr Return: {secondInteractionStr}");
+           Log.Info("secondInteractionXML Socket Open: " + SocketConnected(secondInteractionSocket));
 
 
 
@@ -152,16 +163,16 @@ namespace Acrelec.Mockingbird.Payment
             //open Finalisesocket connection
             Socket finaliseSocket = CreateSocket();
             //check socket open
-            Console.WriteLine("Finalise Socket Open: " + SocketConnected(finaliseSocket));
+           Log.Info("Finalise Socket Open: " + SocketConnected(finaliseSocket));
             FinaliseXml = Finalise(TransNum);
             //check response
             string finaliseStr = sendToSmartPay(finaliseSocket, FinaliseXml, "FINALISE");
-            FinaliseResult = CheckResult(finaliseStr);
+            finaliseResultStr = CheckResult(finaliseStr);
 
-            if (FinaliseResult == "success") Console.WriteLine("******Transaction Finalised successfully******\n");
+            if (finaliseResultStr == "success")Log.Info("******Transaction Finalised successfully******\n");
             else
-                Console.WriteLine("****** Transaction not Finalised ******\n");
-            Console.WriteLine("Finalise Socket Open: " + SocketConnected(finaliseSocket));
+               Log.Info("****** Transaction not Finalised ******\n");
+           Log.Info("Finalise Socket Open: " + SocketConnected(finaliseSocket));
 
             return DiagnosticErrMsg.OK;
         }
@@ -178,7 +189,7 @@ namespace Acrelec.Mockingbird.Payment
             try
             {
                 sender.Connect(remoteEP);
-                // Console.WriteLine("Connection is active 1: " + SocketConnected(sender));
+                //Log.Info("Connection is active 1: " + SocketConnected(sender));
 
                 // Encode the data string into a byte array.  
                 byte[] msg = Encoding.ASCII.GetBytes(operation.ToString());
@@ -207,7 +218,7 @@ namespace Acrelec.Mockingbird.Payment
                         bytesRec = sender.Receive(bytes);
                         if (bytesRec != 0)
                         {
-                            Console.WriteLine($"PAYMENT and FINALISE is {Encoding.ASCII.GetString(bytes, 0, bytesRec)}");
+                           Log.Info($"{operationStr} is {Encoding.ASCII.GetString(bytes, 0, bytesRec)}");
                             return Encoding.ASCII.GetString(bytes, 0, bytesRec);
                         }
 
@@ -221,12 +232,12 @@ namespace Acrelec.Mockingbird.Payment
                     {
                         bytesRec = sender.Receive(bytes);
                         message = Encoding.ASCII.GetString(bytes, 0, bytesRec);
-                        // Console.WriteLine($"PRINTRECEIPTCUSTOMER is {Encoding.ASCII.GetString(bytes, 0, bytesRec)}");
+                        Log.Info($"PRINTRECEIPTCUSTOMER is {message}");
 
 
                         if (message.Contains("processTransactionResponse"))
                         {
-                            Console.WriteLine("************ Processs transaction Called *************");
+                            Log.Info("************ Processs transaction Called *************");
                             return message;
                         }
 
@@ -239,15 +250,15 @@ namespace Acrelec.Mockingbird.Payment
             }
             catch (ArgumentNullException ane)
             {
-                Console.WriteLine("ArgumentNullException : {0}", ane.ToString());
+               Log.Info("ArgumentNullException : {0}", ane.ToString());
             }
             catch (SocketException se)
             {
-                Console.WriteLine("SocketException : {0}", se.ToString());
+               Log.Info("SocketException : {0}", se.ToString());
             }
             catch (Exception e)
             {
-                Console.WriteLine("Unexpected exception : {0}", e.ToString());
+               Log.Info("Unexpected exception : {0}", e.ToString());
             }
 
             return string.Empty;
