@@ -10,7 +10,7 @@ namespace Acrelec.Mockingbird.Payment
     public enum DiagnosticErrMsg : short
     {
         OK = 0,
-        NOTOK = 1
+        NOTOK = -1
     }
     public class Utils
     {

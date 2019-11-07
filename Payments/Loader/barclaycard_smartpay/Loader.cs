@@ -92,14 +92,6 @@ namespace Acrelec.Mockingbird.Payment
 
         public PeripheralStatus LastStatus { get; private set; }
 
-        //public PaymentCapability Capability => new PaymentCapability()
-        //{
-        //    AcceptsCash = false,
-        //    CanRefund = false,
-        //    PaymentApplications = null,
-        //    ReceivePayProgressCalls = false
-        //};
-
         public PaymentCapability Capability
         {
             get
@@ -292,14 +284,16 @@ namespace Acrelec.Mockingbird.Payment
                 var proxy = _channelFactory.CreateChannel();
                 using (proxy as IDisposable)
                 {
-                    result = proxy.Pay(payRequest.Amount);
+                    result = proxy.Pay(payRequest.Amount, payRequest.TransactionReference);
                 }
 
                 payDetails = new PayDetails
                 {
                     PaidAmount = result.Data?.PaidAmount ?? 0,
-                    HasClientReceipt = result.Data?.HasClientReceipt ?? false
+                    HasClientReceipt = result.Data?.HasClientReceipt ?? false,
+                    HasMerchantReceipt = result.Data?.HasMerchantReceipt ?? false
                 };
+                
 
                 specificStatusDetails = new SpecificStatusDetails()
                 {
@@ -308,7 +302,7 @@ namespace Acrelec.Mockingbird.Payment
                 };
 
                 //Check the status property of the parameters object to see if the Pay was successful
-                if (result.ResultCode == ResultCode.Success && result.Data?.Result == PaymentResult.Successful)
+                if ((result.ResultCode == ResultCode.Success && result.Data?.Result == PaymentResult.Successful))
                 {
                     _logger.Info(Constants.LOG_FILE, "Payment has succeeded.");
 

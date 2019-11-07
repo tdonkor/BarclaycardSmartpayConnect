@@ -11,8 +11,11 @@ namespace Acrelec.Mockingbird.Payment.Contracts
         [OperationContract]
         Result Test();
 
+        //[OperationContract]
+        //Result<PaymentData> Pay(int amount);
+
         [OperationContract]
-        Result<PaymentData> Pay(int amount);
+        Result<PaymentData> Pay(int amount, string transactionReference);
 
         [OperationContract]
         void Shutdown();

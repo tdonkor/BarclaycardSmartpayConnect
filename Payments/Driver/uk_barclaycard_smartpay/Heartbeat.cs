@@ -50,9 +50,8 @@ namespace Acrelec.Mockingbird.Payment
 
             try
             {
-                using (var api = new PaymentSenseRestApi())
+                using (var api = new BarclayCardSmartpayApi())
                 {
-                   
                     Alive = true;
                 }
             }

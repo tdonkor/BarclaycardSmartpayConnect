@@ -77,36 +77,6 @@ namespace Acrelec.Mockingbird.Payment.Configuration
             }
         }
 
-
-        public string UserName
-        {
-            get
-            {
-                return _entries.FirstOrDefault(_ => _.Key == "USERNAME")?.Value ?? "acrelec";
-            }
-        }
-        public string Password
-        {
-            get
-            {
-                return _entries.FirstOrDefault(_ => _.Key == "PASSWORD")?.Value ?? "8ffb32c4-8b29-428d-b5e8-896f7ca7890d";
-            }
-        }
-
-        public string UserAccountUrl
-        {
-            get
-            {
-                return _entries.FirstOrDefault(_ => _.Key == "USER_ACCOUNT_URL")?.Value ?? "https://st185l090000.test.connect.paymentsense.cloud";
-            }
-        }
-        public string Tid
-        {
-            get
-            {
-                return _entries.FirstOrDefault(_ => _.Key == "TID")?.Value ?? "22163665";
-            }
-        }
         public string Currency
         {
             get
@@ -114,29 +84,7 @@ namespace Acrelec.Mockingbird.Payment.Configuration
                 return _entries.FirstOrDefault(_ => _.Key == "CURRENCY")?.Value ?? "GBP";
             }
         }
-        public string MediaType
-        {
-            get
-            {
-                return _entries.FirstOrDefault(_ => _.Key == "MEDIATYPE")?.Value ?? "application/connect.v2+json";
-            }
-        }
-        public string InstallerId
-        {
-            get
-            {
-                return _entries.FirstOrDefault(_ => _.Key == "INSTALLERID")?.Value ?? "ST185L09";
-            }
-        }
-        public string SoftwareHouseId
-        {
-            get
-            {
-                return _entries.FirstOrDefault(_ => _.Key == "SOFTWAREHOUSEID")?.Value ?? "ST185L09";
-            }
-        }
-
-
+ 
 
         public int HeartbeatInterval
         {

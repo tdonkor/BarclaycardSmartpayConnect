@@ -59,6 +59,9 @@
     <Reference Include="Acrelec.Library.Pipes">
       <HintPath>..\..\..\Acrelec.MockingBird.Core\Acrelec.Library.Pipes.dll</HintPath>
     </Reference>
+    <Reference Include="Mockingbird.Feather.Peripherals">
+      <HintPath>..\..\..\Acrelec.MockingBird.Core\Mockingbird.Feather.Peripherals.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.IO.Compression" />

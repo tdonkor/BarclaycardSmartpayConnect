@@ -7,8 +7,8 @@
     <ProjectGuid>{1594DC88-1899-458D-B21F-681B36189691}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>barclaycard_smartpay</RootNamespace>
-    <AssemblyName>barclaycard_smartpay</AssemblyName>
+    <RootNamespace>Acrelec.Mockingbird.Payment</RootNamespace>
+    <AssemblyName>Mockingbird.Payment_uk_barclaycard_smartpay</AssemblyName>
     <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>

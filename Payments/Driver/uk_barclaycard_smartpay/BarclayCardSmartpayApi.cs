@@ -37,7 +37,7 @@ namespace Acrelec.Mockingbird.Payment
             remoteEP = new IPEndPoint(ipAddress, port);
         }
 
-        public DiagnosticErrMsg Pay(int amount, out TransactionInfo TransactionResult)
+        public DiagnosticErrMsg Pay(int amount, string transactionRef, out TransactionReceipts transactionReceipts)
         {
 
             XDocument paymentXml = null;
@@ -48,7 +48,7 @@ namespace Acrelec.Mockingbird.Payment
 
             int intAmount;
             DiagnosticErrMsg isSuccessful = DiagnosticErrMsg.OK;
-            TransactionResult = null;
+            transactionReceipts = new TransactionReceipts();
 
             //check amount is valid
             intAmount = Utils.GetNumericAmountValue(amount);
@@ -111,7 +111,7 @@ namespace Acrelec.Mockingbird.Payment
 
             //check that the response contains a Receipt or is not NULL this is the Merchant receipt
 
-            TransactionResult.MerchantReturnedReceipt =   ExtractXMLReceiptDetails(processTran);
+            transactionReceipts.MerchantReturnedReceipt =   ExtractXMLReceiptDetails(processTran);
 
 
             //checkSocket closed
