@@ -354,7 +354,7 @@ namespace Acrelec.Mockingbird.Payment
                                   "<POI_MSG type=\"submittal\">" +
                                    "<SUBMIT name=\"submitPayment\">" +
                                     "<TRANSACTION type= \"purchase\" action =\"auth\" source =\"icc\" customer=\"present\">" +
-                                    "<AMOUNT currency=\"826\" country=\"826\">" +
+                                    "<AMOUNT currency=\"" + currency + "\" country=\"" + country + "\">" +
                                       "<TOTAL>" + amount + "</TOTAL>" +
                                     "</AMOUNT>" +
                                     "</TRANSACTION>" +
