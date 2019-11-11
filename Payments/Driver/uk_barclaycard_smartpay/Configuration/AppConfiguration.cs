@@ -76,6 +76,13 @@ namespace Acrelec.Mockingbird.Payment.Configuration
                 return _entries.FirstOrDefault(_ => _.Key =="OUT_PATH")?.Value ?? @"out\";
             }
         }
+        public string Port
+        {
+            get
+            {
+                return _entries.FirstOrDefault(_ => _.Key == "PORT")?.Value ?? "8000";
+            }
+        }
 
         public string Currency
         {
@@ -84,7 +91,15 @@ namespace Acrelec.Mockingbird.Payment.Configuration
                 return _entries.FirstOrDefault(_ => _.Key == "CURRENCY")?.Value ?? "GBP";
             }
         }
- 
+
+        public string Country
+        {
+            get
+            {
+                return _entries.FirstOrDefault(_ => _.Key == "COUNTRY")?.Value ?? "GBP";
+            }
+        }
+
 
         public int HeartbeatInterval
         {

@@ -1,4 +1,5 @@
 ﻿using Acrelec.Library.Logger;
+using Acrelec.Mockingbird.Payment.Configuration;
 using System;
 using System.IO;
 using System.Net;
@@ -12,8 +13,6 @@ namespace Acrelec.Mockingbird.Payment
     public class BarclayCardSmartpayApi : IDisposable
     {
 
-        //int amount
-        int port = 8000;
         IPHostEntry ipHostInfo;
         IPAddress ipAddress;
         IPEndPoint remoteEP;
@@ -22,7 +21,13 @@ namespace Acrelec.Mockingbird.Payment
         // Data buffer for incoming data.
         byte[] bytes = new byte[1024];
 
-  
+        //Ini file data 
+        AppConfiguration configFile;
+        int currency;
+        int country;
+        int port;
+
+
         /// <summary>
         /// Constructor
         /// </summary>
@@ -30,6 +35,11 @@ namespace Acrelec.Mockingbird.Payment
         {
             // Establish the remote endpoint for the socket.  
             // This example uses port 8000 on the local computer.  
+            configFile = AppConfiguration.Instance;
+            currency = Convert.ToInt32(configFile.Currency);
+            country = Convert.ToInt32(configFile.Country);
+            port = Convert.ToInt32(configFile.Port);
+
             ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
             ipAddress = ipHostInfo.AddressList[0];
             remoteEP = new IPEndPoint(ipAddress, port);
