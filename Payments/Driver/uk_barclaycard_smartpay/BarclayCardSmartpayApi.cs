@@ -13,6 +13,9 @@ namespace Acrelec.Mockingbird.Payment
     public class BarclayCardSmartpayApi : IDisposable
     {
 
+        static int number = 0;
+        string transNum = "000000";
+
         IPHostEntry ipHostInfo;
         IPAddress ipAddress;
         IPEndPoint remoteEP;
@@ -52,11 +55,13 @@ namespace Acrelec.Mockingbird.Payment
             XDocument procTranXML = null;
             XDocument firstInteractionXML = null;
             XDocument secondInteractionXML = null;
-            XDocument FinaliseXml = null;
+            XDocument finaliseXml = null;
+            XDocument cancelXml = null;
 
             int intAmount;
-            
-             
+
+            number++;
+            transNum = number.ToString().PadLeft(6, '0');
 
             transactionReceipts = new TransactionReceipts();
 
@@ -70,26 +75,17 @@ namespace Acrelec.Mockingbird.Payment
 
             Log.Info($"Valid payment amount: {intAmount}");
 
-            //transNum = transactionRef;
-
             //check for a success or failure string  in return
             string submitPaymentResultStr = string.Empty;
             string finaliseResultStr = string.Empty;
             string receiptResultStr = string.Empty;
 
 
-            //string transNum = string.Empty;
-
-            Random rnd = new Random();
-             int transNum = rnd.Next(1, int.MaxValue);
-            //int transNum = Convert.ToInt32(transactionRef);
-           // transNum = transactionRef;
-
             Log.Info("Transaction Number is ***** " + transNum + " *****\n\n");
 
-            //************ PROCEDURES ***********
-
-            /************************************************************************
+            /*********************** Authorisation **********************************
+            *************************************************************************
+            *                                                                       *
             * Submittal – Submitting data to Smartpay Connect ready for processing. *
             * payment                                                               *
             *************************************************************************/
@@ -117,8 +113,10 @@ namespace Acrelec.Mockingbird.Payment
             Log.Info("Paymentsocket Open: " + SocketConnected(paymentsocket));
 
             /************************************************************************************
+            *                                                                                   *
             * Transactional – Processing of a transaction submitted during the submittal phase. *
-            * Process Transaction   - gets the Merchant receipt                                                          *
+            * Process Transaction   - gets the Merchant receipt                                 *
+            *                                                                                   *
             *************************************************************************************/
 
             Socket processSocket = CreateSocket();
@@ -153,9 +151,11 @@ namespace Acrelec.Mockingbird.Payment
 
             //TODO if receipt is not successful cancel the transaction or send the successful response
             
-            /*****************************************************************************
-            * Interaction – Specific functionality for controlling PoS and PED behaviour.*
-            * gets the Customer receipt                                                  *
+            /******************************************************************************
+            *                                                                             *
+            * Interaction – Specific functionality for controlling PoS and PED behaviour. *
+            * gets the Customer receipt                                                   *
+            *                                                                             *
             *******************************************************************************/
 
            Socket firstInteractionSocket = CreateSocket();
@@ -188,8 +188,10 @@ namespace Acrelec.Mockingbird.Payment
             Log.Info("firstInteractionXML Socket Open: " + SocketConnected(firstInteractionSocket));
 
             /***********************************************************************************************************
-            * Interaction – Specific functionality for controlling PoS and PED behaviour. ( ProcessTransactionResponse) *                                                                      *
-             ************************************************************************************************************/
+            *                                                                                                           *
+            * Interaction – Specific functionality for controlling PoS and PED behaviour. ( ProcessTransactionResponse) *  
+            *                                                                                                           *
+            *************************************************************************************************************/
 
            Socket secondInteractionSocket = CreateSocket();
         
@@ -208,16 +210,19 @@ namespace Acrelec.Mockingbird.Payment
 
             Log.Info("secondInteractionXML Socket Open: " + SocketConnected(secondInteractionSocket));
 
-            /****************************************************************************************************************
+
+            /*****************************************************************************************************************
+             *                                                                                                               *
              * finalise Response message so that the transaction can be finalised and removed from Smartpay Connect's memory *
-            ****************************************************************************************************************/
+             *                                                                                                               *
+            ******************************************************************************************************************/
 
             Socket finaliseSocket = CreateSocket();
             Log.Info("Finalise Socket Open: " + SocketConnected(finaliseSocket));
 
-            FinaliseXml = Finalise(transNum);
+            finaliseXml = Finalise(transNum);
       
-            string finaliseStr = sendToSmartPay(finaliseSocket, FinaliseXml, "FINALISE");
+            string finaliseStr = sendToSmartPay(finaliseSocket, finaliseXml, "FINALISE");
             finaliseResultStr = CheckResult(finaliseStr);
 
             if (finaliseResultStr == "success")Log.Info("******Transaction Finalised successfully******\n");
@@ -342,7 +347,7 @@ namespace Acrelec.Mockingbird.Payment
         }
 
 
-        public XDocument Payment(int amount, int transNum)
+        public XDocument Payment(int amount, string transNum)
         {
             XDocument payment = XDocument.Parse(
                                   "<RLSOLVE_MSG version=\"5.0\">" +
@@ -365,7 +370,30 @@ namespace Acrelec.Mockingbird.Payment
             return payment;
         }
 
-        public XDocument processTransaction(int transNum)
+        public XDocument PaymentSettlement(int amount, string transNum)
+        {
+            XDocument payment = XDocument.Parse(
+                                  "<RLSOLVE_MSG version=\"5.0\">" +
+                                  "<MESSAGE>" +
+                                  "<SOURCE_ID>DK01ACRELEC</SOURCE_ID>" +
+                                  "<TRANS_NUM>" + transNum +
+                                  "</TRANS_NUM>" +
+                                  "</MESSAGE>" +
+                                  "<POI_MSG type=\"submittal\">" +
+                                   "<SUBMIT name=\"submitPayment\">" +
+                                    "<TRANSACTION type= \"purchase\" action =\"Sett\" source =\"icc\" customer=\"present\">" +
+                                    "<AMOUNT currency=\"" + currency + "\" country=\"" + country + "\">" +
+                                      "<TOTAL>" + amount + "</TOTAL>" +
+                                    "</AMOUNT>" +
+                                    "</TRANSACTION>" +
+                                   "</SUBMIT>" +
+                                  "</POI_MSG>" +
+                                "</RLSOLVE_MSG>");
+
+            return payment;
+        }
+
+        public XDocument processTransaction(string transNum)
         {
             XDocument processTran = XDocument.Parse(
                               "<RLSOLVE_MSG version=\"5.0\">" +
@@ -384,7 +412,7 @@ namespace Acrelec.Mockingbird.Payment
         }
 
 
-        public XDocument PrintReciptResponse(int transNum)
+        public XDocument PrintReciptResponse(string transNum)
         {
             XDocument printReceipt = XDocument.Parse(
                             "<RLSOLVE_MSG version=\"5.0\">" +
@@ -404,7 +432,7 @@ namespace Acrelec.Mockingbird.Payment
         }
 
 
-        public XDocument Finalise(int transNum)
+        public XDocument Finalise(string transNum)
         {
             XDocument finalise = XDocument.Parse(
                             "<RLSOLVE_MSG version=\"5.0\">" +
@@ -422,7 +450,26 @@ namespace Acrelec.Mockingbird.Payment
             return finalise;
         }
 
-        //new 
+        public XDocument CancelTransaction(string transNum)
+        {
+            XDocument cancel = XDocument.Parse(
+                            "<RLSOLVE_MSG version=\"5.0\">" +
+                            "<MESSAGE>" +
+                            "<SOURCE_ID>DK01ACRELEC</SOURCE_ID>" +
+                              "<TRANS_NUM>" +
+                                  transNum +
+                              "</TRANS_NUM>" +
+                            "</MESSAGE>" +
+                            "<POI_MSG type=\"altPayment\">" +
+                             "<TRANS name=\"cancelTransaction\"></TRANS>" +
+                            "</POI_MSG>" +
+                          "</RLSOLVE_MSG>");
+
+
+            return cancel;
+        }
+
+        
         private Socket CreateSocket()
         {
             // Create a TCP/IP  socket.  
