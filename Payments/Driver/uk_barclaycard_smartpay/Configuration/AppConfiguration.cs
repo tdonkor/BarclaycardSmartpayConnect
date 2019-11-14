@@ -99,6 +99,13 @@ namespace Acrelec.Mockingbird.Payment.Configuration
                 return _entries.FirstOrDefault(_ => _.Key == "COUNTRY")?.Value ?? "GBP";
             }
         }
+        public string SourceId
+        {
+            get
+            {
+                return _entries.FirstOrDefault(_ => _.Key == "SOURCE_ID")?.Value ?? "DK01.P001";
+            }
+        }
 
 
         public int HeartbeatInterval
