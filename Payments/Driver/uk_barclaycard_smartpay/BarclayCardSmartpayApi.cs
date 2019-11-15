@@ -189,7 +189,7 @@ namespace Acrelec.Mockingbird.Payment
 
            string customerResultStr = sendToSmartPay(merchantSuccessSocket, merchantSuccessXML, "MERCHANTTRECEIPT");
 
-           Log.Info($"customerResultStr Return: {customerResultStr}");
+           //Log.Info($"customerResultStr Return: {customerResultStr}");
 
             transactionReceipts.CustomerReturnedReceipt = ExtractXMLReceiptDetails(customerResultStr);
 
@@ -223,7 +223,7 @@ namespace Acrelec.Mockingbird.Payment
         
             string customerReceiptStr = sendToSmartPay(customerSuccessSocket, customerSuccessXML, "CUSTOMERRECEIPT");
 
-           Log.Info($"customerReceiptStr Return: {customerReceiptStr}");
+           //Log.Info($"customerReceiptStr Return: {customerReceiptStr}");
 
             if (customerReceiptStr.Contains("declined"))
             {
@@ -235,7 +235,7 @@ namespace Acrelec.Mockingbird.Payment
 
             reference = GetReferenceValue(customerReceiptStr);
 
-            Log.Info($"REFERNCE = {reference}");
+            Log.Info($"REFERENCE Number = {reference}");
 
             /*****************************************************************************************************************
              *                                                                                                               *
@@ -258,7 +258,7 @@ namespace Acrelec.Mockingbird.Payment
 
            Log.Info("Finalise Socket Open: " + SocketConnected(finaliseSocket));
 
-            //Log.Info("Returning the value: " + isSuccessful);
+            Log.Info("Returning the value: " + isSuccessful);
 
             if (isSuccessful == DiagnosticErrMsg.OK)
             {
@@ -372,7 +372,7 @@ namespace Acrelec.Mockingbird.Payment
                     {
                         bytesRec = sender.Receive(bytes);
                         message = Encoding.ASCII.GetString(bytes, 0, bytesRec);
-                        Log.Info($"{operationStr} is {Encoding.ASCII.GetString(bytes, 0, bytesRec)}");
+                       // Log.Info($"{operationStr} is {Encoding.ASCII.GetString(bytes, 0, bytesRec)}");
 
 
                         if (message.Contains("processTransactionResponse"))
@@ -522,7 +522,6 @@ namespace Acrelec.Mockingbird.Payment
                                     + "\"" + reference + "\"" + "> " +
                                      "<AMOUNT currency=\"" + currency + "\" country=\"" + country + "\">" +
                                       "<TOTAL>" + amount + "</TOTAL>" +
-                                      "<DESCRIPTION>" + description + "</DESCRIPTION>" +
                                     "</AMOUNT>" +
                                     "</TRANSACTION>" +
                                    "</SUBMIT>" +
