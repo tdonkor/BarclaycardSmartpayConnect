@@ -5,6 +5,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Timers;
 using System.Xml;
 using System.Xml.Linq;
 
@@ -15,18 +16,22 @@ namespace Acrelec.Mockingbird.Payment
         //Trans_NUM details
         static int number = 0;
         string transNum = "000000";
-        string transactionLimit = "9999998";
+        const string transactionLimit = "9999998";
 
         //Reference variables
         string toBeSearched = "reference=";
         string reference = string.Empty;
 
+        //socket variables
         IPHostEntry ipHostInfo;
         IPAddress ipAddress;
         IPEndPoint remoteEP;
 
         // payment success flag
         DiagnosticErrMsg isSuccessful = DiagnosticErrMsg.OK;
+
+        // payment response flag
+        private string paymentSuccessful = string.Empty;
 
         // Data buffer for incoming data.
         byte[] bytes = new byte[1024];
@@ -62,10 +67,10 @@ namespace Acrelec.Mockingbird.Payment
 
             XDocument paymentXml = null;
             XDocument procTranXML = null;
-            XDocument merchantSuccessXML = null;
             XDocument customerSuccessXML = null;
+            XDocument processTransRespSuccessXML = null;
             XDocument finaliseXml = null;
-            XDocument cancelXml = null;
+          //  XDocument voidlXml = null;
             XDocument finaliseSettleXml = null;
             XDocument paymentSettlementXml = null;
             XDocument procSettleTranXML = null;
@@ -109,7 +114,7 @@ namespace Acrelec.Mockingbird.Payment
             *************************************************************************
             *                                                                       *
             * Submittal – Submitting data to Smartpay Connect ready for processing. *
-            * payment                                                               *
+            * PAYMENT Process                                                             *
             *************************************************************************/
             paymentXml = Payment(amount, transNum, description);
 
@@ -138,7 +143,7 @@ namespace Acrelec.Mockingbird.Payment
             /************************************************************************************
             *                                                                                   *
             * Transactional – Processing of a transaction submitted during the submittal phase. *
-            * Process Transaction   - gets the Merchant receipt                                 *
+            * PROCESSTRANSACTION process   - gets the Merchant receipt                          *
             *                                                                                   *
             *************************************************************************************/
 
@@ -149,10 +154,10 @@ namespace Acrelec.Mockingbird.Payment
             procTranXML = processTransaction(transNum);
 
             //send processTransaction - check response
-            string processTranResponseStr = sendToSmartPay(processSocket, procTranXML, "PROCESSTRANSACTION");
+            string processTranReturnStr = sendToSmartPay(processSocket, procTranXML, "PROCESSTRANSACTION");
 
             //check that the response contains a Receipt or is not NULL this is the Merchant receipt
-            transactionReceipts.MerchantReturnedReceipt =  ExtractXMLReceiptDetails(processTranResponseStr);
+            transactionReceipts.MerchantReturnedReceipt =  ExtractXMLReceiptDetails(processTranReturnStr);
 
             //Check the merchant receipt is populated
             if (string.IsNullOrEmpty(transactionReceipts.MerchantReturnedReceipt))
@@ -172,22 +177,22 @@ namespace Acrelec.Mockingbird.Payment
 
             Log.Info("ProcessTransaction Open: " + SocketConnected(paymentsocket));
 
-           
-            
+
+
             /******************************************************************************
             *                                                                             *
-            * Interaction – Specific functionality for controlling PoS and PED behaviour. *
+            * Interaction – Specific functionality for controlling POS and PED behaviour. *
             * gets the Customer receipt                                                   *
-            *                                                                             *
+            *                                                                      *
             *******************************************************************************/
 
-           Socket merchantSuccessSocket = CreateSocket();
+            Socket customerSuccessSocket = CreateSocket();
          
-           Log.Info("merchantSuccessXML Socket Open: " + SocketConnected(merchantSuccessSocket));
+           Log.Info("customerSuccessXML Socket Open: " + SocketConnected(customerSuccessSocket));
 
-           merchantSuccessXML = PrintReciptResponse(transNum);
+           customerSuccessXML = PrintReciptResponse(transNum);
 
-           string customerResultStr = sendToSmartPay(merchantSuccessSocket, merchantSuccessXML, "MERCHANTTRECEIPT");
+           string customerResultStr = sendToSmartPay(customerSuccessSocket, customerSuccessXML, "CUSTOMERECEIPT");
 
            //Log.Info($"customerResultStr Return: {customerResultStr}");
 
@@ -208,39 +213,39 @@ namespace Acrelec.Mockingbird.Payment
                 }
             }
 
-            Log.Info("merchantSuccessXML Socket Open: " + SocketConnected(merchantSuccessSocket));
+            Log.Info("customerSuccessXML Socket Open: " + SocketConnected(customerSuccessSocket));
 
             /***********************************************************************************************************
             *                                                                                                           *
             * Interaction – Specific functionality for controlling PoS and PED behaviour. ( ProcessTransactionResponse) *  
-            *                                                                                                           *
+            * PROCESSTRANSACTIONRESPONSE                                                                                            *
             *************************************************************************************************************/
 
-           Socket customerSuccessSocket = CreateSocket();
+            Socket processTransactionRespSocket = CreateSocket();
         
-           Log.Info("customerSuccessSocket Socket Open: " + SocketConnected(customerSuccessSocket));
-           customerSuccessXML = PrintReciptResponse(transNum);
+           Log.Info("processTransactionRespSocket Socket Open: " + SocketConnected(processTransactionRespSocket));
+           processTransRespSuccessXML = PrintReciptResponse(transNum);
         
-            string customerReceiptStr = sendToSmartPay(customerSuccessSocket, customerSuccessXML, "CUSTOMERRECEIPT");
+            string processTransRespStr = sendToSmartPay(processTransactionRespSocket, processTransRespSuccessXML, "PROCESSTRANSACTIONRESPONSE");
 
-           //Log.Info($"customerReceiptStr Return: {customerReceiptStr}");
+           //Log.Info($"processTransRespStr Return: {processTransRespStr}");
 
-            if (customerReceiptStr.Contains("declined"))
+            if (processTransRespStr.Contains("declined"))
             {
                 Log.Error("Auth Process Transaction Response has Declined Transaction.");
                 isSuccessful = DiagnosticErrMsg.NOTOK;
             }
 
-            Log.Info("customerSuccessXML Socket Open: " + SocketConnected(customerSuccessSocket));
+            Log.Info("processTransRespSuccessXML Socket Open: " + SocketConnected(processTransactionRespSocket));
 
-            reference = GetReferenceValue(customerReceiptStr);
+            reference = GetReferenceValue(processTransRespStr);
 
             Log.Info($"REFERENCE Number = {reference}");
 
             /*****************************************************************************************************************
              *                                                                                                               *
              * finalise Response message so that the transaction can be finalised and removed from Smartpay Connect's memory *
-             *                                                                                                               *
+             *    FINALISE                                                                                                           *
             ******************************************************************************************************************/
 
             Socket finaliseSocket = CreateSocket();
@@ -258,7 +263,49 @@ namespace Acrelec.Mockingbird.Payment
 
            Log.Info("Finalise Socket Open: " + SocketConnected(finaliseSocket));
 
-            Log.Info("Returning the value: " + isSuccessful);
+            //check if authorisation is successful  and save the transactions details
+            // Amount
+            // TransNum
+            // Description
+
+            string orderNumResponse = string.Empty;
+
+            //if authorisation check passed save the details and wait for an order response from 
+            //the database (will use a file to simulate this response
+            if (isSuccessful == DiagnosticErrMsg.OK)
+            {
+               
+                WriteDataToFile(amount, transNum, description);
+                Log.Info("Data Saved to file");
+
+                //check for a response from the every half second for 30 seconds.
+
+                Timer aTimer = new Timer(30000);
+
+                aTimer.Elapsed += new ElapsedEventHandler(ReadResponseFile);
+                aTimer.Interval = 500;
+                aTimer.Enabled = true;
+
+
+
+            }
+
+
+            /********************************************************
+             * 
+             * 
+             * 
+             * Submittal using settlement Reference                                     *
+             *   
+             * 
+             * 
+             * 
+             * *****************************************************/
+
+        
+
+
+
 
             if (isSuccessful == DiagnosticErrMsg.OK)
             {
@@ -266,7 +313,7 @@ namespace Acrelec.Mockingbird.Payment
                  * Submittal using settlement Reference                                     *
                  * submit payment                                                           *
                  ****************************************************************************/
-                Log.Info("\n******Doing  Settlement Payment ******\n");
+            Log.Info("\n******Doing  Settlement Payment ******\n");
 
                 paymentSettlementXml = PaymentSettle(amount, transNum, reference, description);
 
@@ -385,7 +432,7 @@ namespace Acrelec.Mockingbird.Payment
 
                 }
 
-                if ((operationStr == "PROCESSTRANSACTION") || (operationStr == "MERCHANTTRECEIPT"))
+                if ((operationStr == "PROCESSTRANSACTION") || (operationStr == "CUSTOMERECEIPT"))
                 {
                     do
                     {
@@ -414,7 +461,7 @@ namespace Acrelec.Mockingbird.Payment
                     } while (bytesRec != 0);
                 }
 
-                if (operationStr == "CUSTOMERRECEIPT")
+                if (operationStr == "PROCESSTRANSACTIONRESPONSE")
                 {
                     do
                     {
@@ -588,18 +635,20 @@ namespace Acrelec.Mockingbird.Payment
             return finalise;
         }
 
-        public XDocument CancelTransaction(string transNum)
+        public XDocument VoidTransaction(string transNum, string transRef)
         {
             XDocument cancel = XDocument.Parse(
                             "<RLSOLVE_MSG version=\"5.0\">" +
                             "<MESSAGE>" +
-                            "<SOURCE_ID>DK01ACRELEC</SOURCE_ID>" +
-                              "<TRANS_NUM>" +
+                                "<TRANS_NUM>" +
                                   transNum +
                               "</TRANS_NUM>" +
+                            "<SOURCE_ID>DK01ACRELEC</SOURCE_ID>" +
                             "</MESSAGE>" +
-                            "<POI_MSG type=\"altPayment\">" +
-                             "<TRANS name=\"cancelTransaction\"></TRANS>" +
+                            "<POI_MSG type=\"administrative\">" +
+                             "<ADMIN name=\"voidTransaction\">" +
+                              "<TRANSACTION reference =\"" + transRef + "\"></TRANSACTION>" +
+                             "</ADMIN>" +
                             "</POI_MSG>" +
                           "</RLSOLVE_MSG>");
 
@@ -642,7 +691,42 @@ namespace Acrelec.Mockingbird.Payment
             return returnedStr;
         }
 
-        public void Dispose()
+
+            public void WriteDataToFile(int amount, string transNum, string description)
+            {
+                using (TextWriter writer = File.CreateText("C:/Customer Payment Drivers/SmartPay/Smartpay.txt"))
+                {
+                    // Write three strings.
+                    //
+                    writer.WriteLine(amount);
+                    writer.WriteLine(transNum);
+                    writer.WriteLine(description);
+                }
+
+            }
+
+
+
+
+            public void ReadResponseFile(object source, ElapsedEventArgs e)
+            {
+                string line = string.Empty;
+
+                using (TextReader reader = File.OpenText("C:/Customer Payment Drivers/SmartPay/Smartpay.txt"))
+                {
+                    //read line if it is empty
+                    line = reader.ReadLine();
+                    Console.WriteLine(line);
+
+                    if (line != string.Empty)
+                    {
+                     paymentSuccessful = line;
+                    }
+                }
+
+            }
+
+            public void Dispose()
         {
 
         }
