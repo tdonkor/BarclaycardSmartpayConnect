@@ -5,6 +5,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using System.Timers;
 using System.Xml;
 using System.Xml.Linq;
@@ -13,7 +14,7 @@ namespace Acrelec.Mockingbird.Payment
 {
     public class BarclayCardSmartpayApi : IDisposable
     {
-        //Trans_NUM details
+        //Trans_NUM details incrementing each time
         static int number = 0;
         string transNum = "000000";
         const string transactionLimit = "9999998";
@@ -33,8 +34,12 @@ namespace Acrelec.Mockingbird.Payment
         // payment response flag
         private string paymentSuccessful = string.Empty;
 
+        //bool Authorisation successful flag
+        private bool authorisationFlag = false;
+
         // Data buffer for incoming data.
-        byte[] bytes = new byte[1024];
+        //make large enough to take the largest return
+        byte[] bytes = new byte[3096];
 
         //Ini file data 
         AppConfiguration configFile;
@@ -51,6 +56,7 @@ namespace Acrelec.Mockingbird.Payment
         {
             // Establish the remote endpoint for the socket.  
             // This example uses port 8000 on the local computer.  
+            // get ini file values
             configFile = AppConfiguration.Instance;
             currency = Convert.ToInt32(configFile.Currency);
             country = Convert.ToInt32(configFile.Country);
@@ -62,6 +68,21 @@ namespace Acrelec.Mockingbird.Payment
             remoteEP = new IPEndPoint(ipAddress, port);
         }
 
+        /// <summary>
+        /// The Payment Method executes the payment Authorisation 
+        /// for the received transactionpayment amount from the kiosk
+        /// Sends socket inputs to smartpay
+        /// Sends the Authorisation response value out
+        /// if Authorisation is successful waits for an order number
+        /// if Order number is valid from a transaction thats goes through
+        /// run the settlement process or if transaction result not valid
+        /// void the transaction.
+        /// sends out the transaction reciepts to the payment service
+        /// </summary>
+        /// <param name="amount"></param>
+        /// <param name="transactionRef"></param>
+        /// <param name="transactionReceipts"></param>
+        /// <returns></returns>
         public DiagnosticErrMsg Pay(int amount, string transactionRef, out TransactionReceipts transactionReceipts)
         {
 
@@ -70,28 +91,28 @@ namespace Acrelec.Mockingbird.Payment
             XDocument customerSuccessXML = null;
             XDocument processTransRespSuccessXML = null;
             XDocument finaliseXml = null;
-          //  XDocument voidlXml = null;
+            XDocument voidXml = null;
             XDocument finaliseSettleXml = null;
             XDocument paymentSettlementXml = null;
             XDocument procSettleTranXML = null;
 
             int intAmount;
 
-            //check for a success or failure string 
+            //check for a success or failure string from smartpay
             string submitPaymentResult = string.Empty;
             string finaliseResult = string.Empty;
             string finaliseSettleResult = string.Empty;
             string submitSettlePaymentResult = string.Empty;
             string description = transactionRef;
 
-
+            // increment transaction number
             number++;
             transNum = number.ToString().PadLeft(6, '0');
 
             //check for transNum max value
             if (transNum == transactionLimit)
             {
-                //reset
+                //reset back to beginning
                 number = 1;
                 transNum = number.ToString().PadLeft(6, '0');
             }
@@ -107,38 +128,45 @@ namespace Acrelec.Mockingbird.Payment
             }
 
             Log.Info($"Valid payment amount: {intAmount}");
-            Log.Info("Transaction Number is ***** " + transNum + " *****\n");
-            Log.Info("Transaction Ref is ******** " + transactionRef + " *****\n");
+            Log.Info("Transaction Number : " +  transNum );
+            Log.Info("Transaction Ref (Description) : " + transactionRef);
 
-            /*********************** Authorisation **********************************
-            *************************************************************************
-            *                                                                       *
-            * Submittal – Submitting data to Smartpay Connect ready for processing. *
-            * PAYMENT Process                                                             *
+            /*********************** AUTHORISATION SECTION ***************************
+            *                                                                       
+            * Submittal – Submitting data to Smartpay Connect ready for processing. 
+            * SUBMIT PAYMENT Process           
+            * 
             *************************************************************************/
+
+            //process Payment XML
             paymentXml = Payment(amount, transNum, description);
 
-            Socket paymentsocket = CreateSocket();
-            Log.Info("Paymentsocket Open: " + SocketConnected(paymentsocket));
+            Socket paymentSocket = CreateSocket();
+            Log.Info("paymentSocket Open: " + SocketConnected(paymentSocket));
 
             //send submitpayment to smartpay - check response
-            string paymentResponseStr = sendToSmartPay(paymentsocket, paymentXml, "PAYMENT");
+            string paymentResponseStr = sendToSmartPay(paymentSocket, paymentXml, "SUBMITPAYMENT");
 
-            //check response outcome
-            submitPaymentResult = CheckResult(paymentResponseStr);
-
-            if (submitPaymentResult == "success")
-            {
-                Log.Info("Successful payment submitted");
-            }
+            //check response from Smartpay is not Null or Empty
+            if (CheckIsNullOrEmpty(paymentResponseStr, "Submit Authorisation Payment")) isSuccessful = DiagnosticErrMsg.NOTOK;
             else
             {
-                Log.Error("Payment failed");
-                isSuccessful = DiagnosticErrMsg.NOTOK;
-            }
+                //check response outcome
+                submitPaymentResult = CheckResult(paymentResponseStr);
 
+                if (submitPaymentResult.ToLower() == "success")
+                {
+                    Log.Info("Successful payment submitted");
+                }
+                else
+                {
+                    Log.Error("Payment failed");
+                    isSuccessful = DiagnosticErrMsg.NOTOK;
+                }
+            }
+          
             //checkSocket closed
-            Log.Info("Paymentsocket Open: " + SocketConnected(paymentsocket));
+            Log.Info("paymentSocket Open: " + SocketConnected(paymentSocket));
 
             /************************************************************************************
             *                                                                                   *
@@ -147,37 +175,39 @@ namespace Acrelec.Mockingbird.Payment
             *                                                                                   *
             *************************************************************************************/
 
+            //create processtransaction socket
             Socket processSocket = CreateSocket();
 
             Log.Info("ProcessTransaction Socket Open: " + SocketConnected(processSocket));
    
+            //Process Transaction XML
             procTranXML = processTransaction(transNum);
 
             //send processTransaction - check response
             string processTranReturnStr = sendToSmartPay(processSocket, procTranXML, "PROCESSTRANSACTION");
 
-            //check that the response contains a Receipt or is not NULL this is the Merchant receipt
-            transactionReceipts.MerchantReturnedReceipt =  ExtractXMLReceiptDetails(processTranReturnStr);
-
-            //Check the merchant receipt is populated
-            if (string.IsNullOrEmpty(transactionReceipts.MerchantReturnedReceipt))
-            {
-                Log.Error("No Merchant receipt returned");
-                isSuccessful = DiagnosticErrMsg.NOTOK;
-            }
+            //check response from Smartpay is not NULL or Empty
+            if (CheckIsNullOrEmpty(processTranReturnStr, "Process Transaction")) isSuccessful = DiagnosticErrMsg.NOTOK;
             else
             {
-                //check if reciept has a successful transaction
-                if (transactionReceipts.MerchantReturnedReceipt.Contains("DECLINED"))
+                //check that the response contains a Receipt or is not NULL this is the Merchant receipt
+                transactionReceipts.MerchantReturnedReceipt = ExtractXMLReceiptDetails(processTranReturnStr);
+
+                //Check the merchant receipt is populated
+                if (CheckIsNullOrEmpty(transactionReceipts.MerchantReturnedReceipt, "Merchant Receipt populated")) isSuccessful = DiagnosticErrMsg.NOTOK;
+                else
                 {
-                    Log.Error("Merchant Receipt has Declined Transaction.");
-                    isSuccessful = DiagnosticErrMsg.NOTOK;
+                    //check if reciept has a successful transaction
+                    if (transactionReceipts.MerchantReturnedReceipt.Contains("DECLINED"))
+                    {
+                        Log.Error("Merchant Receipt has Declined Transaction.");
+                        isSuccessful = DiagnosticErrMsg.NOTOK;
+                    }
                 }
-            }
+            }         
 
-            Log.Info("ProcessTransaction Open: " + SocketConnected(paymentsocket));
-
-
+            //check socket closed
+            Log.Info("ProcessTransaction Socket Open: " + SocketConnected(processSocket));
 
             /******************************************************************************
             *                                                                             *
@@ -186,39 +216,41 @@ namespace Acrelec.Mockingbird.Payment
             *                                                                      *
             *******************************************************************************/
 
-            Socket customerSuccessSocket = CreateSocket();
+           //create customer socket
+           Socket customerSuccessSocket = CreateSocket();
          
-           Log.Info("customerSuccessXML Socket Open: " + SocketConnected(customerSuccessSocket));
+           Log.Info("customerSuccess Socket Open: " + SocketConnected(customerSuccessSocket));
 
+            //process customerSuccess XML
            customerSuccessXML = PrintReciptResponse(transNum);
 
            string customerResultStr = sendToSmartPay(customerSuccessSocket, customerSuccessXML, "CUSTOMERECEIPT");
 
-           //Log.Info($"customerResultStr Return: {customerResultStr}");
-
-            transactionReceipts.CustomerReturnedReceipt = ExtractXMLReceiptDetails(customerResultStr);
-
-            if (string.IsNullOrEmpty(transactionReceipts.CustomerReturnedReceipt))
-            {
-                Log.Error("No Customer receipt returned");
-                isSuccessful = DiagnosticErrMsg.NOTOK;
-            }
+            //Check response from Smartpay is not Null or Empty
+            if (CheckIsNullOrEmpty(customerResultStr, "Customer Receipt process")) isSuccessful = DiagnosticErrMsg.NOTOK;
             else
             {
-                //check if reciept has a successful transaction
-                if (transactionReceipts.CustomerReturnedReceipt.Contains("DECLINED"))
+                transactionReceipts.CustomerReturnedReceipt = ExtractXMLReceiptDetails(customerResultStr);
+
+                //check returned receipt is not Null or Empty
+                if (CheckIsNullOrEmpty(transactionReceipts.CustomerReturnedReceipt, "Customer Receipt returned")) isSuccessful = DiagnosticErrMsg.NOTOK;
+                else
                 {
-                    Log.Error("Customer Receipt has Declined Transaction.");
-                    isSuccessful = DiagnosticErrMsg.NOTOK;
+                    //check if reciept has a successful transaction
+                    if (transactionReceipts.CustomerReturnedReceipt.Contains("DECLINED"))
+                    {
+                        Log.Error("Customer Receipt has Declined Transaction.");
+                        isSuccessful = DiagnosticErrMsg.NOTOK;
+                    }
                 }
             }
 
-            Log.Info("customerSuccessXML Socket Open: " + SocketConnected(customerSuccessSocket));
+            Log.Info("customerSuccess Socket Open: " + SocketConnected(customerSuccessSocket));
 
             /***********************************************************************************************************
-            *                                                                                                           *
-            * Interaction – Specific functionality for controlling PoS and PED behaviour. ( ProcessTransactionResponse) *  
-            * PROCESSTRANSACTIONRESPONSE                                                                                            *
+            *                                                                                                           
+            * Interaction – Specific functionality for controlling PoS and PED behaviour. ( ProcessTransactionResponse)  
+            * PROCESSTRANSACTIONRESPONSE                                                                                            
             *************************************************************************************************************/
 
             Socket processTransactionRespSocket = CreateSocket();
@@ -228,24 +260,34 @@ namespace Acrelec.Mockingbird.Payment
         
             string processTransRespStr = sendToSmartPay(processTransactionRespSocket, processTransRespSuccessXML, "PROCESSTRANSACTIONRESPONSE");
 
-           //Log.Info($"processTransRespStr Return: {processTransRespStr}");
-
-            if (processTransRespStr.Contains("declined"))
+            //check response from Smartpay is not Null or Empty
+            if (CheckIsNullOrEmpty(processTransRespStr, "Process Transaction Response")) isSuccessful = DiagnosticErrMsg.NOTOK;
+            else
             {
-                Log.Error("Auth Process Transaction Response has Declined Transaction.");
-                isSuccessful = DiagnosticErrMsg.NOTOK;
+                //get the reference value from the process Transaction Response
+                // this is needed for the settlement process
+                //
+                reference = GetReferenceValue(processTransRespStr);
+
+                Log.Info($"REFERENCE Number = {reference}");
+
+
+                if (processTransRespStr.Contains("declined"))
+                {
+                    Log.Error("***** Auth Process Transaction Response has Declined Transaction. *****");
+                    isSuccessful = DiagnosticErrMsg.NOTOK;
+                }
             }
 
             Log.Info("processTransRespSuccessXML Socket Open: " + SocketConnected(processTransactionRespSocket));
 
-            reference = GetReferenceValue(processTransRespStr);
-
-            Log.Info($"REFERENCE Number = {reference}");
+          
 
             /*****************************************************************************************************************
-             *                                                                                                               *
-             * finalise Response message so that the transaction can be finalised and removed from Smartpay Connect's memory *
-             *    FINALISE                                                                                                           *
+             *                                                                                                               
+             * finalise Response message so that the transaction can be finalised and removed from Smartpay Connect's memory 
+             *   
+             *   FINALISE                                                                                                           
             ******************************************************************************************************************/
 
             Socket finaliseSocket = CreateSocket();
@@ -254,66 +296,88 @@ namespace Acrelec.Mockingbird.Payment
             finaliseXml = Finalise(transNum);
       
             string finaliseStr = sendToSmartPay(finaliseSocket, finaliseXml, "FINALISE");
-            finaliseResult = CheckResult(finaliseStr);
 
-            if (finaliseResult == "success")
-                Log.Info("****** Auth Transaction Finalised successfully******\n");
+            //check response from Smartpay is not Null or Empty
+            if (CheckIsNullOrEmpty(finaliseStr, "Finalise Authorisation")) isSuccessful = DiagnosticErrMsg.NOTOK;
             else
-               Log.Info("****** Auth Transaction not Finalised ******\n");
+            {
+                finaliseResult = CheckResult(finaliseStr);
+
+                if (finaliseResult == "success")
+                {
+                    Log.Info("****** Authorisation Transaction Finalised Successfully******");
+                }
+                else
+                {
+                    Log.Info("***** Authorisation Transaction not Finalised *****");
+                    isSuccessful = DiagnosticErrMsg.NOTOK;
+                }
+            }
+            
 
            Log.Info("Finalise Socket Open: " + SocketConnected(finaliseSocket));
 
-            //check if authorisation is successful  and save the transactions details
-            // Amount
-            // TransNum
-            // Description
+            // check if the Authorisation has been successful
+            if (isSuccessful == DiagnosticErrMsg.OK)
+                authorisationFlag = true;
+            else
+                authorisationFlag = false;
+  
+            WriteDataToFile(authorisationFlag);
+
+            Log.Info($"Authorisation result {authorisationFlag} saved to file");
+
+            if (authorisationFlag == false)
+            {
+                //authoriation has failed return to paymentService
+                //end payment process and  print out failure receipt.
+
+                Log.Error("\n***** Authorisation Check has failed. *****\n");
+                return isSuccessful;
+            }
+            else
+            {
+                Log.Info("\n***** Payment Authorisation Check has passed. Wait for Order Number. *****\n");
+            }
+
+            /*************************************************************************************************
+            * SIMULATION
+            *
+            * if authorisation check has passed pass the authorisation result to the database
+            * and wait for an order response from the transaction
+            * (will use a file to simulate this response)
+            * 
+            * *************************************************************************************************/
 
             string orderNumResponse = string.Empty;
 
-            //if authorisation check passed save the details and wait for an order response from 
-            //the database (will use a file to simulate this response
-            if (isSuccessful == DiagnosticErrMsg.OK)
-            {
-               
-                WriteDataToFile(amount, transNum, description);
-                Log.Info("Data Saved to file");
 
-                //check for a response from the every half second for 30 seconds.
+            //wait 10 seconds for reply from payment
+            Thread.Sleep(10000);
 
-                Timer aTimer = new Timer(30000);
+            // check return from transaction
+            orderNumResponse = ReadResponseFile();
 
-                aTimer.Elapsed += new ElapsedEventHandler(ReadResponseFile);
-                aTimer.Interval = 500;
-                aTimer.Enabled = true;
+            Log.Info("Order number returned = " + orderNumResponse);
 
-
-
-            }
-
-
-            /********************************************************
+            /********************************************************************************
              * 
-             * 
-             * 
-             * Submittal using settlement Reference                                     *
+             * Submittal using settlement Reference                                 
              *   
              * 
              * 
              * 
-             * *****************************************************/
+             * ******************************************************************************/
 
-        
-
-
-
-
-            if (isSuccessful == DiagnosticErrMsg.OK)
+            if ((isSuccessful == DiagnosticErrMsg.OK) && (authorisationFlag == true) && (!(string.IsNullOrEmpty(orderNumResponse))))
             {
                 /****************************************************************************
-                 * Submittal using settlement Reference                                     *
-                 * submit payment                                                           *
+                 * Submittal using settlement Reference, amount , transNum
+                 * description which is the transaction reference
+                 * 
+                 * Submit Settlement Payment                                                           *
                  ****************************************************************************/
-            Log.Info("\n******Doing  Settlement Payment ******\n");
+                Log.Info("\n******Performing Settlement Payment ******\n");
 
                 paymentSettlementXml = PaymentSettle(amount, transNum, reference, description);
 
@@ -324,19 +388,26 @@ namespace Acrelec.Mockingbird.Payment
                 Log.Info("Paymentsocket Open: " + SocketConnected(paymenSettlementSocket));
 
                 //send submitpayment to smartpay - check response
-                string paymentSettleResponseStr = sendToSmartPay(paymenSettlementSocket, paymentSettlementXml, "PAYMENT");
-                Log.Info($"payment SettleResponse Return: {paymentSettleResponseStr}");
+                string paymentSettleResponseStr = sendToSmartPay(paymenSettlementSocket, paymentSettlementXml, "SUBMITPAYMENT");
+               
 
-                submitSettlePaymentResult = CheckResult(paymentSettleResponseStr);
-
-                if (submitSettlePaymentResult == "success")
-                {
-                   Log.Info("******Successful Settlement Payment submitted******\n");
-                }
+                //check response from Smartpay is not Null or Empty
+                if (CheckIsNullOrEmpty(paymentSettleResponseStr, "Settlement Payment")) isSuccessful = DiagnosticErrMsg.NOTOK;
                 else
                 {
-                    Log.Error("****** Settlement Payment failed******\n");
+                    submitSettlePaymentResult = CheckResult(paymentSettleResponseStr);
+
+                    if (submitSettlePaymentResult == "success")
+                    {
+                        Log.Info("******Successful Settlement Payment submitted******\n");
+                    }
+                    else
+                    {
+                        Log.Error("****** Settlement Payment failed******\n");
+                        isSuccessful = DiagnosticErrMsg.NOTOK;
+                    }
                 }
+               
 
                 Log.Info("paymenSettlementSocket Open: " + SocketConnected(paymenSettlementSocket));
 
@@ -352,7 +423,9 @@ namespace Acrelec.Mockingbird.Payment
                 //send processTransaction - check response
 
                 string processSettleTranResponseStr = sendToSmartPay(processSettleSocket, procSettleTranXML, "PROCESSSETTLETRANSACTION");
-                Log.Info($"ProcessTran Return: {processSettleTranResponseStr}");
+                //check response from Smartpay is not Null or Empty
+                if (CheckIsNullOrEmpty(processSettleTranResponseStr, "Process Settlement Transaction")) isSuccessful = DiagnosticErrMsg.NOTOK;
+                //No response needed
 
                 Log.Info("processSettleSocket Socket Open: " + SocketConnected(processSettleSocket));
 
@@ -367,30 +440,61 @@ namespace Acrelec.Mockingbird.Payment
 
                 //check response
                 string finaliseSettleStr = sendToSmartPay(finaliseSettSocket, finaliseSettleXml, "FINALISE");
-                Log.Info($"finalise Return: {finaliseSettleStr}");
-
-
-                finaliseSettleResult = CheckResult(finaliseSettleStr);
-
-                if (finaliseSettleResult == "success")
-                {
-                    Log.Info("******Transaction Settle  Finalised successfully******\n");
-                }
+                if (CheckIsNullOrEmpty(finaliseSettleStr, "Settlement Finalise")) isSuccessful = DiagnosticErrMsg.NOTOK;
                 else
                 {
-                    Log.Error("****** Transaction Settle not Finalised ******\n");
-                    isSuccessful = DiagnosticErrMsg.NOTOK;
+                    finaliseSettleResult = CheckResult(finaliseSettleStr);
+
+                    if (finaliseSettleResult == "success")
+                    {
+                        Log.Info("******Transaction Settle  Finalised successfully******\n");
+                    }
+                    else
+                    {
+                        Log.Error("****** Transaction Settle not Finalised ******\n");
+                        isSuccessful = DiagnosticErrMsg.NOTOK;
+                    }
+
                 }
+              
 
                 Log.Info("Finalise Socket Open: " + SocketConnected(finaliseSettSocket));
+            }
+            else
+            {
+                ////////////////////////
+                // void the transaction
+                ////////////////////////
+
+                Socket voidSocket = CreateSocket();
+                Log.Info("void Socket Open: " + SocketConnected(voidSocket));
+
+                voidXml = voidTransaction(transNum, transactionRef);
+                string voidResponseStr = sendToSmartPay(voidSocket, voidXml, "VOID");
+
+
+                //success is not OK
+                isSuccessful = DiagnosticErrMsg.NOTOK;
+                Log.Info("void Socket Open: " + SocketConnected(voidSocket));
             }
 
             return isSuccessful;
 
         }
 
+        public bool CheckIsNullOrEmpty(string stringToCheck, string stringCheck)
+        {
+            if (string.IsNullOrEmpty(stringToCheck))
+            {
+                Log.Error($" String check: {stringCheck} returned a Null or Empty value.");
+                isSuccessful = DiagnosticErrMsg.NOTOK;
+                return true;
+            }
+            return false;
+        }
+
         /// <summary>
-        /// 
+        /// Sends XML document for each operation for smartpay to process
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="operation"></param>
@@ -405,7 +509,6 @@ namespace Acrelec.Mockingbird.Payment
             try
             {
                 sender.Connect(remoteEP);
-                //Log.Info("Connection is active 1: " + SocketConnected(sender));
 
                 // Encode the data string into a byte array.  
                 byte[] msg = Encoding.ASCII.GetBytes(operation.ToString());
@@ -446,7 +549,7 @@ namespace Acrelec.Mockingbird.Payment
                     } while (message.Contains("posDisplayMessage"));
 
                 }
-                if ((operationStr == "PAYMENT") || (operationStr == "FINALISE"))
+                if ((operationStr == "SUBMITPAYMENT") || (operationStr == "FINALISE"))
                 {
                     do
                     {
@@ -472,13 +575,29 @@ namespace Acrelec.Mockingbird.Payment
 
                         if (message.Contains("processTransactionResponse"))
                         {
-                            Log.Info("************ Processs transaction Called *************");
+                            Log.Info("**** Processs transaction Called ****");
                             return message;
                         }
 
 
                     } while (message != string.Empty);
 
+                }
+
+                if ((operationStr == "VOID"))
+                {
+
+                    bytesRec = sender.Receive(bytes);
+                    message = Encoding.ASCII.GetString(bytes, 0, bytesRec);
+                    Console.WriteLine($"{operationStr} is {message}");
+
+
+                    if (message.Contains("CANCELLED"))
+                    {
+                        Log.Info("****** Transaction VOID  successful *****");
+                        
+                        return message;
+                    }
 
                 }
 
@@ -499,6 +618,11 @@ namespace Acrelec.Mockingbird.Payment
             return string.Empty;
         }
 
+        /// <summary>
+        /// Checks a string for a success or failure string
+        /// </summary>
+        /// <param name="submitResult"></param>
+        /// <returns></returns>
         private string CheckResult(string submitResult)
         {
             string result = string.Empty;
@@ -518,9 +642,13 @@ namespace Acrelec.Mockingbird.Payment
         }
 
 
+        /// <summary>
+        /// Gets the reference number from a string
+        /// </summary>
+        /// <param name="message"></param>
+        /// <returns></returns>
         private string GetReferenceValue(string message)
         {
-
             string reference = message.Substring(message.IndexOf(toBeSearched) + toBeSearched.Length);
             StringBuilder str = new StringBuilder();
 
@@ -635,7 +763,7 @@ namespace Acrelec.Mockingbird.Payment
             return finalise;
         }
 
-        public XDocument VoidTransaction(string transNum, string transRef)
+        public XDocument voidTransaction(string transNum, string transRef)
         {
             XDocument cancel = XDocument.Parse(
                             "<RLSOLVE_MSG version=\"5.0\">" +
@@ -643,7 +771,7 @@ namespace Acrelec.Mockingbird.Payment
                                 "<TRANS_NUM>" +
                                   transNum +
                               "</TRANS_NUM>" +
-                            "<SOURCE_ID>DK01ACRELEC</SOURCE_ID>" +
+                             "<SOURCE_ID>" + sourceId + "</SOURCE_ID>" +
                             "</MESSAGE>" +
                             "<POI_MSG type=\"administrative\">" +
                              "<ADMIN name=\"voidTransaction\">" +
@@ -692,27 +820,20 @@ namespace Acrelec.Mockingbird.Payment
         }
 
 
-            public void WriteDataToFile(int amount, string transNum, string description)
+            public void WriteDataToFile(bool authorisationFlag)
             {
                 using (TextWriter writer = File.CreateText("C:/Customer Payment Drivers/SmartPay/Smartpay.txt"))
                 {
-                    // Write three strings.
-                    //
-                    writer.WriteLine(amount);
-                    writer.WriteLine(transNum);
-                    writer.WriteLine(description);
+                    writer.WriteLine(authorisationFlag);
                 }
-
             }
 
 
-
-
-            public void ReadResponseFile(object source, ElapsedEventArgs e)
+            public string ReadResponseFile()
             {
                 string line = string.Empty;
 
-                using (TextReader reader = File.OpenText("C:/Customer Payment Drivers/SmartPay/Smartpay.txt"))
+                using (TextReader reader = File.OpenText("C:/Customer Payment Drivers/SmartPay/SmartpayResponse.txt"))
                 {
                     //read line if it is empty
                     line = reader.ReadLine();
@@ -724,11 +845,10 @@ namespace Acrelec.Mockingbird.Payment
                     }
                 }
 
+                return line;
+
             }
 
-            public void Dispose()
-        {
-
-        }
+            public void Dispose() {}
     }
 }

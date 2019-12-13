@@ -66,6 +66,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CommunicatorMethods.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="Contracts\IPaymentService.cs" />
     <Compile Include="Contracts\PaymentData.cs" />
@@ -73,7 +74,9 @@
     <Compile Include="Contracts\Result.cs" />
     <Compile Include="Contracts\ResultCode.cs" />
     <Compile Include="Contracts\RuntimeConfiguration.cs" />
+    <Compile Include="CoreCommunicator.cs" />
     <Compile Include="ExtensionMethods\AssemblyExtensions.cs" />
+    <Compile Include="ICommunicatorCallbacks.cs" />
     <Compile Include="Loader.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

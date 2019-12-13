@@ -24,6 +24,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "uk_barclaycard_smartpay", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "barclaycard_smartpay", "Payments\Loader\barclaycard_smartpay\barclaycard_smartpay.csproj", "{1594DC88-1899-458D-B21F-681B36189691}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BarclaycardSmartpay.Tests", "BarclaycardSmartpay.Tests\BarclaycardSmartpay.Tests.csproj", "{A3574DAC-F0D5-43D5-AC31-964C650BEC4D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -38,6 +40,10 @@ Global
 		{1594DC88-1899-458D-B21F-681B36189691}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1594DC88-1899-458D-B21F-681B36189691}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1594DC88-1899-458D-B21F-681B36189691}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A3574DAC-F0D5-43D5-AC31-964C650BEC4D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A3574DAC-F0D5-43D5-AC31-964C650BEC4D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A3574DAC-F0D5-43D5-AC31-964C650BEC4D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A3574DAC-F0D5-43D5-AC31-964C650BEC4D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
