@@ -106,6 +106,20 @@ namespace Acrelec.Mockingbird.Payment.Configuration
                 return _entries.FirstOrDefault(_ => _.Key == "SOURCE_ID")?.Value ?? "DK01.P001";
             }
         }
+        public string ConnectionString
+        {
+            get
+            {
+                return _entries.FirstOrDefault(_ => _.Key == "CONNECTION_STRING")?.Value ?? "Data Source=DESKTOP-JGJG8M9\\SQLEXPRESS;Initial Catalog=AKD_MAB;Integrated Security=True";
+            }
+        }
+        public string TableName
+        {
+            get
+            {
+                return _entries.FirstOrDefault(_ => _.Key == "TABLE_NAME")?.Value ?? "DATABASETABLE";
+            }
+        }
 
 
         public int HeartbeatInterval
