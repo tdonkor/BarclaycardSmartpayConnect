@@ -66,12 +66,16 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\Acrelec.MockingBird.Core\Newtonsoft.Json.dll</HintPath>
     </Reference>
+    <Reference Include="RestSharp, Version=106.0.0.0, Culture=neutral, PublicKeyToken=598062e77f915f75, processorArchitecture=MSIL">
+      <HintPath>..\..\..\packages\RestSharp.106.10.1\lib\net452\RestSharp.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.IO.Compression" />
     <Reference Include="System.IO.Compression.FileSystem" />
     <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.ServiceModel" />
+    <Reference Include="System.Web" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -81,6 +85,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BarclayCardSmartpayApi.cs" />
+    <Compile Include="CallStoredProcs.cs" />
     <Compile Include="Communicator\CommunicatorMethods.cs" />
     <Compile Include="Communicator\CoreCommunicator.cs" />
     <Compile Include="Communicator\ICommunicatorCallbacks.cs" />
@@ -103,6 +108,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <None Include="packages.config" />
     <None Include="PAY_UK_BARCLAYCARD_SMARTPAY.ini" />
   </ItemGroup>
   <ItemGroup>

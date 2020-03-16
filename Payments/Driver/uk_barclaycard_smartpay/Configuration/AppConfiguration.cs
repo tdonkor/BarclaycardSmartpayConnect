@@ -121,6 +121,70 @@ namespace Acrelec.Mockingbird.Payment.Configuration
             }
         }
 
+        //API call settings
+        public string ContentType
+        {
+            get
+            {
+                return _entries.FirstOrDefault(_ => _.Key == "CONTENT_TYPE")?.Value ?? "text/plain";
+            }
+        }
+
+        public string ApiKey1
+        {
+            get
+            {
+                return _entries.FirstOrDefault(_ => _.Key == "API_KEY1")?.Value ?? "hdgskIZRgBmyArKCtzkjkZIvaBjMkXVbWGvbq";
+            }
+        }
+
+        public string ApiKey2
+        {
+            get
+            {
+                return _entries.FirstOrDefault(_ => _.Key == "API_KEY2")?.Value ?? "u7f2r48x6bzwyy09vwsii";
+            }
+        }
+
+        public string KeyType1
+        {
+            get
+            {
+                return _entries.FirstOrDefault(_ => _.Key == "KEY_TYPE1")?.Value ?? "X-Flyt-API-Key";
+            }
+        }
+
+        public string KeyType2
+        {
+            get
+            {
+                return _entries.FirstOrDefault(_ => _.Key == "KEY_TYPE2")?.Value ?? "X-Flypay-API-Key";
+            }
+        }
+
+        public string OrderUrl
+        {
+            get
+            {
+                return _entries.FirstOrDefault(_ => _.Key == "ORDER_URL")?.Value ?? "https://api.flypaythis.com/ordering/v3/order";
+            }
+        }
+
+        public string MarkAsPaidUrl
+        {
+            get
+            {
+                return _entries.FirstOrDefault(_ => _.Key == "MARKASPAID_URL")?.Value ?? "/mark-as-paid";
+            }
+        }
+
+        public string SendToPosUrl
+        {
+            get
+            {
+                return _entries.FirstOrDefault(_ => _.Key == "SENDTOPOS_URL")?.Value ?? "https://flyt-acrelec-integration.flyt-platform.com/sendToPo";
+            }
+        }
 
         public int HeartbeatInterval
         {

@@ -9,7 +9,9 @@ using System.Threading;
 using System.Data.SqlClient;
 using System.Xml;
 using System.Xml.Linq;
-
+using System.Data;
+using RestSharp;
+using Newtonsoft.Json;
 
 namespace Acrelec.Mockingbird.Payment
 {
@@ -23,6 +25,7 @@ namespace Acrelec.Mockingbird.Payment
         //Reference variables
         string toBeSearched = "reference=";
         string reference = string.Empty;
+       
 
         //socket variables
         IPHostEntry ipHostInfo;
@@ -37,7 +40,7 @@ namespace Acrelec.Mockingbird.Payment
 
         //bool Authorisation successful flag
          bool authorisationFlag = false;
-         byte authBit = 0;
+        
 
         // Data buffer for incoming data.
         //make large enough to take the largest return
@@ -52,11 +55,29 @@ namespace Acrelec.Mockingbird.Payment
         string connectionString;
         string tableName;
 
-        float tax = 0.0f;
-        float exTax = 0.0f;
-        float incTax = 0.0f;
-        float total = 0.0f;
+        string contentType;
+        string aPIKey1;
+        string aPIKey2;
+        string keyType1;
+        string keyType2;
+        string orderURL;
+        string markAsPaidURL;
+        string sendToPOSURL;
 
+
+
+        //Database transaction items
+        int basketId = 0;
+        string orderId = string.Empty;
+        string posOrderId = string.Empty;
+        string payLoad = string.Empty;
+
+
+        //int apiTax = 0;
+        //int apiExcTax = 0;
+        //int apiIncTax = 0;
+        //int apiTotal = 0;
+ 
 
         //operation XML sent to Smartpay via a socket
         SmartPayOperations smartpayOps;
@@ -76,7 +97,17 @@ namespace Acrelec.Mockingbird.Payment
             port = Convert.ToInt32(configFile.Port);
             sourceId = configFile.SourceId;
             connectionString = configFile.ConnectionString;
+            //connectionString = connectionString = "Data Source = 192.168.254.75,49170; Initial Catalog = AKD_Flyt_MnB; Persist Security Info = True; User ID = sa; Password = acrelec";
             tableName = configFile.TableName;
+
+            contentType = configFile.ContentType;
+            aPIKey1 = configFile.ApiKey1;
+            aPIKey2 = configFile.ApiKey2;
+            keyType1 = configFile.KeyType1;
+            keyType2 = configFile.KeyType2;
+            orderURL = configFile.OrderUrl;
+            markAsPaidURL = configFile.MarkAsPaidUrl;
+            sendToPOSURL = configFile.SendToPosUrl;
 
             ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
             ipAddress = ipHostInfo.AddressList[0];
@@ -102,7 +133,6 @@ namespace Acrelec.Mockingbird.Payment
         /// <returns></returns>
         public DiagnosticErrMsg Pay(int amount, string transactionRef, out TransactionReceipts transactionReceipts)
         {
-
             XDocument paymentXml = null;
             XDocument procTranXML = null;
             XDocument customerSuccessXML = null;
@@ -115,6 +145,7 @@ namespace Acrelec.Mockingbird.Payment
 
             int intAmount;
             isSuccessful = DiagnosticErrMsg.OK;
+            transactionReceipts = new TransactionReceipts();
 
             //check for a success or failure string from smartpay
             string submitPaymentResult = string.Empty;
@@ -135,8 +166,6 @@ namespace Acrelec.Mockingbird.Payment
                 transNum = number.ToString().PadLeft(6, '0');
             }
 
-            transactionReceipts = new TransactionReceipts();
-
             //check amount is valid
             intAmount = Utils.GetNumericAmountValue(amount);
 
@@ -146,15 +175,16 @@ namespace Acrelec.Mockingbird.Payment
             }
 
             Log.Info($"Valid payment amount: {intAmount}");
-            Log.Info("Transaction Number : " +  transNum );
+            Log.Info("Transaction Number : " + transNum);
             Log.Info("Transaction Ref (Description) : " + transactionRef);
 
+           
             /*********************** AUTHORISATION SECTION ***************************
-            *                                                                       
-            * Submittal – Submitting data to Smartpay Connect ready for processing. 
-            * SUBMIT PAYMENT Process           
-            * 
-            *************************************************************************/
+             *                                                                       
+             * Submittal – Submitting data to Smartpay Connect ready for processing. 
+             * SUBMIT PAYMENT Process           
+             * 
+             *************************************************************************/
 
             //process Payment XML
             paymentXml = smartpayOps.Payment(amount, transNum, description, sourceId, currency, country);
@@ -182,7 +212,7 @@ namespace Acrelec.Mockingbird.Payment
                     isSuccessful = DiagnosticErrMsg.NOTOK;
                 }
             }
-          
+
             //checkSocket closed
             Log.Info("paymentSocket Open: " + SocketConnected(paymentSocket));
 
@@ -197,7 +227,7 @@ namespace Acrelec.Mockingbird.Payment
             Socket processSocket = CreateSocket();
 
             Log.Info("ProcessTransaction Socket Open: " + SocketConnected(processSocket));
-   
+
             //Process Transaction XML
             procTranXML = smartpayOps.ProcessTransaction(transNum);
 
@@ -222,7 +252,7 @@ namespace Acrelec.Mockingbird.Payment
                         isSuccessful = DiagnosticErrMsg.NOTOK;
                     }
                 }
-            }         
+            }
 
             //check socket closed
             Log.Info("ProcessTransaction Socket Open: " + SocketConnected(processSocket));
@@ -231,18 +261,18 @@ namespace Acrelec.Mockingbird.Payment
             *                                                                             *
             * Interaction – Specific functionality for controlling POS and PED behaviour. *
             * gets the Customer receipt                                                   *
-            *                                                                      *
+            *                                                                             *
             *******************************************************************************/
 
-           //create customer socket
-           Socket customerSuccessSocket = CreateSocket();
-         
-           Log.Info("customerSuccess Socket Open: " + SocketConnected(customerSuccessSocket));
+            //create customer socket
+            Socket customerSuccessSocket = CreateSocket();
+
+            Log.Info("customerSuccess Socket Open: " + SocketConnected(customerSuccessSocket));
 
             //process customerSuccess XML
-           customerSuccessXML = smartpayOps.PrintReciptResponse(transNum);
+            customerSuccessXML = smartpayOps.PrintReciptResponse(transNum);
 
-           string customerResultStr = sendToSmartPay(customerSuccessSocket, customerSuccessXML, "CUSTOMERECEIPT");
+            string customerResultStr = sendToSmartPay(customerSuccessSocket, customerSuccessXML, "CUSTOMERECEIPT");
 
             //Check response from Smartpay is not Null or Empty
             if (CheckIsNullOrEmpty(customerResultStr, "Customer Receipt process")) isSuccessful = DiagnosticErrMsg.NOTOK;
@@ -265,17 +295,16 @@ namespace Acrelec.Mockingbird.Payment
 
             Log.Info("customerSuccess Socket Open: " + SocketConnected(customerSuccessSocket));
 
-            /***********************************************************************************************************
-            *                                                                                                           
+            /***********************************************************************************************************                                                                                                     
             * Interaction – Specific functionality for controlling PoS and PED behaviour. ( ProcessTransactionResponse)  
             * PROCESSTRANSACTIONRESPONSE                                                                                            
             *************************************************************************************************************/
 
             Socket processTransactionRespSocket = CreateSocket();
-        
-           Log.Info("processTransactionRespSocket Socket Open: " + SocketConnected(processTransactionRespSocket));
-           processTransRespSuccessXML = smartpayOps.PrintReciptResponse(transNum);
-        
+
+            Log.Info("processTransactionRespSocket Socket Open: " + SocketConnected(processTransactionRespSocket));
+            processTransRespSuccessXML = smartpayOps.PrintReciptResponse(transNum);
+
             string processTransRespStr = sendToSmartPay(processTransactionRespSocket, processTransRespSuccessXML, "PROCESSTRANSACTIONRESPONSE");
 
             //check response from Smartpay is not Null or Empty
@@ -299,8 +328,6 @@ namespace Acrelec.Mockingbird.Payment
 
             Log.Info("processTransRespSuccessXML Socket Open: " + SocketConnected(processTransactionRespSocket));
 
-          
-
             /*****************************************************************************************************************
              *                                                                                                               
              * finalise Response message so that the transaction can be finalised and removed from Smartpay Connect's memory 
@@ -312,7 +339,7 @@ namespace Acrelec.Mockingbird.Payment
             Log.Info("Finalise Socket Open: " + SocketConnected(finaliseSocket));
 
             finaliseXml = smartpayOps.Finalise(transNum);
-      
+
             string finaliseStr = sendToSmartPay(finaliseSocket, finaliseXml, "FINALISE");
 
             //check response from Smartpay is not Null or Empty
@@ -331,119 +358,34 @@ namespace Acrelec.Mockingbird.Payment
                     isSuccessful = DiagnosticErrMsg.NOTOK;
                 }
             }
-            
 
-           Log.Info("Finalise Socket Open: " + SocketConnected(finaliseSocket));
+            Log.Info("Finalise Socket Open: " + SocketConnected(finaliseSocket));
 
-          /*****************************************************************************************************************
-           *                                                                                                               
-           * check if the Authorisation has been successful    
-           * 
-           ******************************************************************************************************************/
-
+            /*****************************************************************************************************************
+             *                                                                                                               
+             * check if the Authorisation has been successful    
+             * 
+             ******************************************************************************************************************/
 
             if (isSuccessful == DiagnosticErrMsg.OK)
             {
                 authorisationFlag = true;
-                authBit = 1;
+             
             }
             else
             {
                 authorisationFlag = false;
-                authBit = 0;
                 isSuccessful = DiagnosticErrMsg.NOTOK;
             }
 
-            //TODO get VAT values in this case calculate them use 20% in this example
-            //will get these values from the database so this will be removed
 
-            float vatRate = 0.2f;
-            tax = (amount * vatRate) / 100.0f;
-
-            total = amount / 100.0f;
-            incTax = amount / 100.0f;
-            exTax = (total - tax);
-
-            /******************************************************************************************
-             * 
-             * generate an order number for the transaction is valid to use(Remove from final code)
-             * 
-             * ****************************************************************************************/
-            Random rand = new Random();
-            int randNum = rand.Next(0, 10);
-
-
-            /* ***********************Open Database***************************
-             *
-             * Write the transaction details and 
-             * Authorisation check to the database.
+            /* **********************************************************************
              * 
              * if Authorisation check successful carry on else 
              * end Authorisation and close database connection
-             * 
-             *  TODO - send the tax details to the database 
-             *  (these will be retrieviedin the final code)
              *  
              ******************************************************************/
-            using (SqlConnection conn = new SqlConnection())
-            {
-                conn.ConnectionString = connectionString;
-                Log.Info($"Open database with Connection String: {connectionString} to update the Authorisation response");
-                
-                conn.Open();
-                Log.Info($"Connect to the Database Table: {tableName}");
-                //
-                // overwrite the transactionNumber and Authorisation to the database.
-                // create and configure a new command - will remove the Tax in the final code
-                SqlCommand comm = new SqlCommand($"UPDATE {tableName} SET AuthCheck = @Authcheck , TransNum = @TransNum, TaxTotal = @TaxTotal, IncTax = @IncTax, ExTax = @ExTax, OrderNum = @OrderNum", conn);
-
-                // define parameters used in command object
-                SqlParameter p1 = comm.CreateParameter();
-                p1.ParameterName = "@AuthCheck";
-                p1.SqlDbType = System.Data.SqlDbType.Bit;
-                p1.Value = authBit;
-                comm.Parameters.Add(p1);
-
-                SqlParameter p2 = comm.CreateParameter();
-                p2.ParameterName = "@TransNum";
-                p2.SqlDbType = System.Data.SqlDbType.VarChar;
-                p2.Value = transNum;
-                comm.Parameters.Add(p2);
-
-                //TODO Tax will be removed in final code
-                SqlParameter p3 = comm.CreateParameter();
-                p3.ParameterName = "@TaxTotal";
-                p3.SqlDbType = System.Data.SqlDbType.Float;
-                p3.Value = tax;
-                comm.Parameters.Add(p3);
-
-                SqlParameter p4 = comm.CreateParameter();
-                p4.ParameterName = "@IncTax";
-                p4.SqlDbType = System.Data.SqlDbType.Float;
-                p4.Value = incTax;
-                comm.Parameters.Add(p4);
-
-                SqlParameter p5 = comm.CreateParameter();
-                p5.ParameterName = "@ExTax";
-                p5.SqlDbType = System.Data.SqlDbType.Float;
-                p5.Value = exTax;
-                comm.Parameters.Add(p5);
-
-
-                SqlParameter p6 = comm.CreateParameter();
-                p6.ParameterName = "@OrderNum";
-                p6.SqlDbType = System.Data.SqlDbType.Int;
-                p6.Value = randNum;
-                comm.Parameters.Add(p6);
-
-                Log.Info("Number of rows affected = " + comm.ExecuteNonQuery());
-                //closing connection
-
-              
-                Log.Info("Connection closing");
-            }
-
-            Log.Info($"Authorisation result {authorisationFlag} saved to file");
+           
 
             if (authorisationFlag == false)
             {
@@ -455,75 +397,102 @@ namespace Acrelec.Mockingbird.Payment
             }
             else
             {
-                Log.Info("\n\n***** Payment Authorisation Check has passed. Wait for Order Number. *****\n");
+                Log.Info("\n\n***** Payment Authorisation Check has passed. Get for Order Number. *****\n");
             }
 
             /*************************************************************************************************
-            * TODO
-            * AUTHORISATION check has passed
-            *
-            *  Connect to the Database
-            *  Pass the successful authorisation result to the database for the transaction
-            *  TODO process payment, call stored procedure MarkAsPaid
-            *  Wait for an order response from the transaction
-            *  if orderID is not null run the settlement
-            * (will use a local database to simulate this response during dev)
+            * AUTHORISATION check has passed run the APIS and get back the OrderNumber from the Flyt system
+            * 
+            * Need to run the APIs MarkAsPaid and SendToPOS
             * 
             **************************************************************************************************/
 
-
-            // Order number and Tax values will be retieved from the database
-            string orderNumResponse = string.Empty;
-
-      
-            //wait 3 seconds for reply from payment
-            Thread.Sleep(3000);
-
-
-            /*************************************************************************************
-            * check database to see if the transaction has returned an order number if it has 
-            * do the settlement and add the order number to the receipt
-            * orderNumResponse = ReadResponseFile();
-            * 
-            * open database:
-            * 
-            **************************************************************************************/
-            using (SqlConnection conn = new SqlConnection())
+            using (SqlConnection con = new SqlConnection())
             {
-                conn.ConnectionString = connectionString;
-                Log.Info($"Open database to check for the Order number");
-                conn.Open();
-                SqlCommand comm = new SqlCommand($"SELECT OrderNum, TaxTotal, IncTax, ExTax from { tableName }", conn);
+                con.ConnectionString = connectionString;
+                con.Open();
+                CallStoredProcs storedProcs = new CallStoredProcs();
 
-                SqlDataReader rdr = comm.ExecuteReader();
+                Log.Info("RefInt = " + transactionRef);
 
-                if (rdr.Read())
+                /**********************************************
+                *Get BasketID and OrderId using RefInt
+                * *********************************************/
+                Log.Info("tableName = " + tableName);
+                SqlCommand comm = new SqlCommand($"SELECT ID, APIOrderID from { tableName } where KioskRefInt = {Convert.ToInt32(transactionRef)}", con);
+                using (SqlDataReader reader = comm.ExecuteReader())
                 {
-                    Log.Info(rdr.GetString(0));
-                    //get the first value in the reader
-                    orderNumResponse = rdr.GetString(0);
-                    total = float.Parse(rdr.GetString(1));
-                    incTax = float.Parse(rdr.GetString(2));
-                    exTax = float.Parse(rdr.GetString(3));
+                    while (reader.Read())
+                    {
+                        basketId = reader.GetInt32(0);
+                        orderId = reader.GetString(1);
+                    }
+                }
+
+                Log.Info($"BasketId =  {basketId}");
+                Log.Info($"BasketId =  {orderId}");
+
+
+                //1)  call stored procedure OrderBasket_API_MarkAsPaid to get Payload for API Call
+                payLoad = storedProcs.ExecuteOrderBasket_API_MarkAsPaid(con, basketId);
+
+                //2) call MarkAsPaid API with the generated PayLoad
+                //IRestResponse markAsPaidResp = storedProcs.MarkAsPaidAPI(orderId, payLoad);
+
+                string url = orderURL + "/" + orderId + markAsPaidURL;
+
+                IRestResponse markAsPaidResp = storedProcs.ApiPost(url,
+                                                                   keyType2,
+                                                                   aPIKey2,
+                                                                   contentType,
+                                                                   payLoad);
+
+                if (markAsPaidResp.IsSuccessful)
+                {
+                    //3) call stored procedure OrderBasket_APIResponse_MarkAsPaid to check response of API Call
+                    storedProcs.ExecuteOrderBasket_APIResponse_MarkAsPaid(con, basketId, markAsPaidResp.Content);
+
+                    Log.Info($"MarkAsPaid return =  {markAsPaidResp.Content}");
+
+                    //4) Call stored procedure OrderBasket_API_SendToPos to get PayLoad to use in API call
+                    payLoad = string.Empty;
+                    payLoad = storedProcs.ExecuteOrderBasket_API_SendToPos(con, basketId);
+
+                    //5) Call SendToPos API with the generated PayLoad
+                    //IRestResponse sendToPOSResp = storedProcs.SendToPOSAPI(payLoad);
+                    //IRestResponse sendToPOSResp = storedProcs.SendToPOSAPI(orderId);
+
+                    IRestResponse sendToPOSResp = storedProcs.ApiPost(sendToPOSURL,
+                                                                       keyType1,
+                                                                       aPIKey1,
+                                                                       contentType,
+                                                                       payLoad);
+
+                    if (sendToPOSResp.IsSuccessful == true)
+                    {
+                        //6) call stored procedure OrderBasket_APIResponse_SendToPos to check response from API
+                        storedProcs.ExecuteOrderBasket_APIResponse_SendToPos(con, basketId, sendToPOSResp.Content);
+                        //get PosOrderNumber
+                        dynamic sendToPOS = JsonConvert.DeserializeObject<dynamic>(sendToPOSResp.Content);
+                        posOrderId = sendToPOS.Data.PosOrderID;
+                        Log.Info($"Order Number returned: {posOrderId}");
+
+                        //TODO write the Order number to the OrderBasket table 
+                    }
+                    else
+                    {
+                        posOrderId = null;
+                        isSuccessful = DiagnosticErrMsg.NOTOK;
+                        Log.Error($"SendToPOS API Failed =  {markAsPaidResp.Content}");
+                    }
 
                 }
                 else
                 {
-                    Log.Error("not available yet");
-                    orderNumResponse = string.Empty;
+                    Log.Error("MarkAsPaid API Failed");
+                    isSuccessful = DiagnosticErrMsg.NOTOK;
                 }
-                Log.Info("Database Closing");
             }
-
-                Log.Info("Order number returned = " + orderNumResponse);
-
-            // Add the Order number and VAT values to the receipts
-
-            string orderNumber = $"\nORDER NUMBER : {orderNumResponse}\n";
-            string taxValues = "Tax = " + tax + " \n" +
-                               "Including Tax = " + incTax + " \n" +
-                               "Excluding Tax = " + exTax + " \n\n";
-
 
             /********************************************************************************
              * 
@@ -531,12 +500,9 @@ namespace Acrelec.Mockingbird.Payment
              *   
              * ******************************************************************************/
 
-            //test code remove from final code
-            if (orderNumResponse == "0")
+            if (string.IsNullOrEmpty(posOrderId))
             {
-                //set order num to null
-                orderNumResponse = null;
-                Log.Error("\n************** No order number returned **************\n");
+                Log.Error("\n*** No order number returned the Transaction will be voided **************\n");
             }
 
 
@@ -546,8 +512,8 @@ namespace Acrelec.Mockingbird.Payment
              * if not void the transaction
              * 
              * **********************************************************************************/
-      
-            if ((isSuccessful == DiagnosticErrMsg.OK) && (authorisationFlag == true) && (!(string.IsNullOrEmpty(orderNumResponse))))
+
+            if ((isSuccessful == DiagnosticErrMsg.OK) && (authorisationFlag == true) && (!(string.IsNullOrEmpty(posOrderId))))
             {
                 /****************************************************************************
                  * Submittal using settlement Reference, amount , transNum
@@ -567,7 +533,7 @@ namespace Acrelec.Mockingbird.Payment
 
                 //send submitpayment to smartpay - check response
                 string paymentSettleResponseStr = sendToSmartPay(paymenSettlementSocket, paymentSettlementXml, "SUBMITPAYMENT");
-               
+
 
                 //check response from Smartpay is not Null or Empty
                 if (CheckIsNullOrEmpty(paymentSettleResponseStr, "Settlement Payment")) isSuccessful = DiagnosticErrMsg.NOTOK;
@@ -585,7 +551,7 @@ namespace Acrelec.Mockingbird.Payment
                         isSuccessful = DiagnosticErrMsg.NOTOK;
                     }
                 }
-               
+
 
                 Log.Info("paymenSettlementSocket Open: " + SocketConnected(paymenSettlementSocket));
 
@@ -634,7 +600,7 @@ namespace Acrelec.Mockingbird.Payment
                     }
 
                 }
-              
+
                 Log.Info("Finalise Socket Open: " + SocketConnected(finaliseSettSocket));
 
                 /*****************************************************************************
@@ -649,8 +615,8 @@ namespace Acrelec.Mockingbird.Payment
                     if (position >= 0)
                     {
                         //Add TAX Values and order number
-                        transactionReceipts.CustomerReturnedReceipt = transactionReceipts.CustomerReturnedReceipt.Insert(position, taxValues);
-                        transactionReceipts.CustomerReturnedReceipt = transactionReceipts.CustomerReturnedReceipt.Insert(0, orderNumber);
+                       // transactionReceipts.CustomerReturnedReceipt = transactionReceipts.CustomerReturnedReceipt.Insert(position, taxValues);
+                        transactionReceipts.CustomerReturnedReceipt = transactionReceipts.CustomerReturnedReceipt.Insert(0, posOrderId);
                     }
                 }
             }
@@ -671,10 +637,10 @@ namespace Acrelec.Mockingbird.Payment
                 isSuccessful = DiagnosticErrMsg.NOTOK;
                 Log.Info("void Socket Open: " + SocketConnected(voidSocket));
             }
-
             return isSuccessful;
-
         }
+
+      
 
         public bool CheckIsNullOrEmpty(string stringToCheck, string stringCheck)
         {
@@ -887,9 +853,6 @@ namespace Acrelec.Mockingbird.Payment
 
             return returnedStr;
         }
-
-
-          
 
             public void Dispose() {}
     }
