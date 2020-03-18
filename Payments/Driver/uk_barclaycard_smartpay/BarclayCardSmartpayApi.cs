@@ -604,12 +604,32 @@ namespace Acrelec.Mockingbird.Payment
                 Log.Info("Finalise Socket Open: " + SocketConnected(finaliseSettSocket));
 
                 /*****************************************************************************
-                 *  If no error                                                              *
+                 *  Update the OrderBasket Table with the PosOrderID number                  *
                  *                                                                           *
                  *****************************************************************************/
                 if (isSuccessful == DiagnosticErrMsg.OK)
                 {
                     //add the order number and the VAT to the reciepts
+                    using (SqlConnection con = new SqlConnection())
+                    {
+                        con.ConnectionString = connectionString;
+                        con.Open();
+
+
+                        /**********************************************
+                        *Get BasketID and OrderId using RefInt
+                        * *********************************************/
+                        // Create and configure a command object
+                        SqlCommand com = con.CreateCommand();
+                        com.CommandType = CommandType.StoredProcedure;
+                        com.CommandText = "OrderBasket_APIPosOrderID_ByID";
+                        com.Parameters.Add("@OrderBasketID", SqlDbType.VarChar).Value
+                        = basketId;
+                        var result = com.ExecuteScalar();
+                        Int32 OrderBasketId = Int32.Parse(result.ToString());
+                        posOrderId = Convert.ToString(OrderBasketId);
+
+                    }
 
                     int position = transactionReceipts.CustomerReturnedReceipt.IndexOf("Please");
                     if (position >= 0)
