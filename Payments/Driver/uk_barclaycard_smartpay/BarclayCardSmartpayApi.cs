@@ -636,7 +636,7 @@ namespace Acrelec.Mockingbird.Payment
                     {
                         //Add TAX Values and order number
                        // transactionReceipts.CustomerReturnedReceipt = transactionReceipts.CustomerReturnedReceipt.Insert(position, taxValues);
-                        transactionReceipts.CustomerReturnedReceipt = transactionReceipts.CustomerReturnedReceipt.Insert(0, posOrderId);
+                        transactionReceipts.CustomerReturnedReceipt = transactionReceipts.CustomerReturnedReceipt.Insert(0, "Order Number: " + posOrderId + "\n");
                     }
                 }
             }
