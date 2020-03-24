@@ -397,7 +397,7 @@ namespace Acrelec.Mockingbird.Payment
             }
             else
             {
-                Log.Info("\n\n***** Payment Authorisation Check has passed. Get for Order Number. *****\n");
+                Log.Info("\n\n***** Payment Authorisation Check has passed. Get Order Number. *****\n");
             }
 
             /*************************************************************************************************
@@ -430,7 +430,7 @@ namespace Acrelec.Mockingbird.Payment
                 }
 
                 Log.Info($"BasketId =  {basketId}");
-                Log.Info($"BasketId =  {orderId}");
+                Log.Info($"OrderId =  {orderId}");
 
 
                 //1)  call stored procedure OrderBasket_API_MarkAsPaid to get Payload for API Call
@@ -468,7 +468,7 @@ namespace Acrelec.Mockingbird.Payment
                                                                        contentType,
                                                                        payLoad);
 
-                    if (sendToPOSResp.IsSuccessful == true)
+                    if (sendToPOSResp.IsSuccessful)
                     {
                         //6) call stored procedure OrderBasket_APIResponse_SendToPos to check response from API
                         storedProcs.ExecuteOrderBasket_APIResponse_SendToPos(con, basketId, sendToPOSResp.Content);
@@ -477,7 +477,6 @@ namespace Acrelec.Mockingbird.Payment
                         posOrderId = sendToPOS.Data.PosOrderID;
                         Log.Info($"Order Number returned: {posOrderId}");
 
-                        //TODO write the Order number to the OrderBasket table 
                     }
                     else
                     {
