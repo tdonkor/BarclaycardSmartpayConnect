@@ -473,10 +473,19 @@ namespace Acrelec.Mockingbird.Payment
                         //6) call stored procedure OrderBasket_APIResponse_SendToPos to check response from API
                         storedProcs.ExecuteOrderBasket_APIResponse_SendToPos(con, basketId, sendToPOSResp.Content);
                         //get PosOrderNumber
-                        dynamic sendToPOS = JsonConvert.DeserializeObject<dynamic>(sendToPOSResp.Content);
-                        posOrderId = sendToPOS.Data.PosOrderID;
-                        Log.Info($"Order Number returned: {posOrderId}");
+                        //dynamic sendToPOS = JsonConvert.DeserializeObject<dynamic>(sendToPOSResp.Content);
+                        //posOrderId = sendToPOS.Data.PosOrderID;
+                        //Log.Info($"Order Number returned: {posOrderId}");
 
+
+                        // Create and configure a command object to get the PosOrderID
+                        SqlCommand com = con.CreateCommand();
+                        com.CommandType = CommandType.StoredProcedure;
+                        com.CommandText = "OrderBasket_APIPosOrderID_ByID";
+                        com.Parameters.Add("@OrderBasketID", SqlDbType.VarChar).Value
+                        = basketId;
+                        var result = com.ExecuteScalar();
+                        posOrderId = result.ToString();
                     }
                     else
                     {
@@ -609,26 +618,22 @@ namespace Acrelec.Mockingbird.Payment
                 if (isSuccessful == DiagnosticErrMsg.OK)
                 {
                     //add the order number and the VAT to the reciepts
-                    using (SqlConnection con = new SqlConnection())
-                    {
-                        con.ConnectionString = connectionString;
-                        con.Open();
+                    //using (SqlConnection con = new SqlConnection())
+                    //{
+                    //    con.ConnectionString = connectionString;
+                    //    con.Open();
 
+                    //    // Create and configure a command object
+                    //    SqlCommand com = con.CreateCommand();
+                    //    com.CommandType = CommandType.StoredProcedure;
+                    //    com.CommandText = "OrderBasket_APIPosOrderID_ByID";
+                    //    com.Parameters.Add("@OrderBasketID", SqlDbType.VarChar).Value
+                    //    = basketId;
+                    //    var result = com.ExecuteScalar();
+                    //    Int32 OrderBasketId = Int32.Parse(result.ToString());
+                    //    posOrderId = Convert.ToString(OrderBasketId);
 
-                        /**********************************************
-                        *Get BasketID and OrderId using RefInt
-                        * *********************************************/
-                        // Create and configure a command object
-                        SqlCommand com = con.CreateCommand();
-                        com.CommandType = CommandType.StoredProcedure;
-                        com.CommandText = "OrderBasket_APIPosOrderID_ByID";
-                        com.Parameters.Add("@OrderBasketID", SqlDbType.VarChar).Value
-                        = basketId;
-                        var result = com.ExecuteScalar();
-                        Int32 OrderBasketId = Int32.Parse(result.ToString());
-                        posOrderId = Convert.ToString(OrderBasketId);
-
-                    }
+                    //}
 
                     int position = transactionReceipts.CustomerReturnedReceipt.IndexOf("Please");
                     if (position >= 0)
